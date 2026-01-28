@@ -22,7 +22,7 @@ from contextlib import asynccontextmanager
 import models
 import database
 import schemas
-import config  # <--- IMPORT CONFIG
+import config
 from notifications.email import EmailAdapter
 import agent_routes
 
@@ -48,18 +48,11 @@ def init_db():
     models.Base.metadata.create_all(bind=database.engine)
 
 def create_default_admin(db: Session):
-    """
-    Creates or updates the System Admin based on config.py credentials.
-    Runs on every server startup.
-    """
     admin_email = config.ADMIN_EMAIL
     new_password = config.ADMIN_PASSWORD
     
-    # 1. Check if admin exists
     user = db.query(models.User).filter(models.User.email == admin_email).first()
-    
     if not user:
-        # CREATE NEW ADMIN
         pwd_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         db.add(models.User(
             email=admin_email, 
@@ -73,15 +66,12 @@ def create_default_admin(db: Session):
         db.commit()
         print(f"✅ [Startup] Admin account created: {admin_email}")
     else:
-        # UPDATE EXISTING ADMIN PASSWORD
         user.password_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         db.commit()
         print(f"✅ [Startup] Admin password synced from config for: {admin_email}")
 
-# --- FIX: THE MISSING LIFESPAN FUNCTION ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     init_db()
     db = database.SessionLocal()
     try:
@@ -89,8 +79,6 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
     yield
-    # Shutdown logic (if any)
-# ------------------------------------------
 
 # --- UTILS ---
 def get_db():
@@ -124,41 +112,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 # --- EMAIL TEMPLATES ---
 def get_otp_email_template(name: str, otp: str):
-    plain_text = f"""
-    Subject: Your Verification Code - Al-Shifa Dental System
-    Dear {name},
-    Use the code below to verify your account:
-    {otp}
-    This code expires in 10 minutes.
-    """
-    html_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; }}
-            .header {{ background-color: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }}
-            .content {{ padding: 30px 20px; text-align: center; }}
-            .otp-box {{ background-color: #f3f4f6; border: 2px dashed #2563eb; padding: 15px; font-size: 32px; font-weight: bold; color: #2563eb; display: inline-block; margin: 20px 0; border-radius: 8px; }}
-            .footer {{ font-size: 12px; color: #666; text-align: center; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header"><h1 style="margin:0;">Al-Shifa Dental System</h1></div>
-            <div class="content">
-                <h2>Verify Your Account</h2>
-                <p>Dear <strong>{name}</strong>,</p>
-                <p>Use the verification code below to complete your sign-up process.</p>
-                <div class="otp-box">{otp}</div>
-                <p>This code is valid for <strong>10 minutes</strong>.</p>
-            </div>
-            <div class="footer"><p>&copy; 2026 Al-Shifa Dental System.</p></div>
-        </div>
-    </body>
-    </html>
-    """
+    plain_text = f"Subject: Your Code - Al-Shifa\nDear {name},\nCode: {otp}"
+    html_content = f"<h1>Verify Account</h1><p>Dear {name},</p><h3>{otp}</h3>"
     return plain_text, html_content
 
 # --- ROUTERS ---
@@ -197,6 +152,23 @@ def get_doctor_treatments_public(doctor_id: int, db: Session = Depends(get_db)):
     treatments = db.query(models.Treatment).filter(models.Treatment.hospital_id == doctor.hospital_id).all()
     return [{"name": t.name, "cost": t.cost, "description": t.description} for t in treatments]
 
+# --- NEW: Public Settings for Dynamic Booking ---
+@public_router.get("/doctors/{doctor_id}/settings")
+def get_public_doctor_settings(doctor_id: int, db: Session = Depends(get_db)):
+    doc = db.query(models.Doctor).filter(models.Doctor.id == doctor_id).first()
+    if not doc: raise HTTPException(404, "Doctor not found")
+    
+    # Default settings
+    default_settings = {"work_start_time": "09:00", "work_end_time": "17:00", "slot_duration": 30}
+    
+    if not doc.scheduling_config:
+        return default_settings
+        
+    try:
+        return json.loads(doc.scheduling_config)
+    except:
+        return default_settings
+
 @public_router.post("/appointments")
 def create_appointment(appt: schemas.AppointmentCreate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "patient": raise HTTPException(403, "Only patients can book")
@@ -212,9 +184,10 @@ def create_appointment(appt: schemas.AppointmentCreate, user: models.User = Depe
     if start_dt < datetime.now(): raise HTTPException(400, "Cannot book past time")
     end_dt = start_dt + timedelta(minutes=30)
 
+    # Allow booking if previous slot was cancelled
     existing = db.query(models.Appointment).filter(
         models.Appointment.doctor_id == appt.doctor_id,
-        models.Appointment.status.in_(["confirmed", "blocked", "in_progress"]),
+        models.Appointment.status.in_(["confirmed", "blocked", "in_progress"]), # Ignore 'cancelled'
         models.Appointment.start_time < end_dt,
         models.Appointment.end_time > start_dt
     ).first()
@@ -242,6 +215,7 @@ def create_appointment(appt: schemas.AppointmentCreate, user: models.User = Depe
 
 @public_router.get("/patient/appointments")
 def get_my_appointments(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # PATIENTS SHOULD SEE ALL HISTORY (INCLUDING CANCELLED)
     p = db.query(models.Patient).filter(models.Patient.user_id == user.id).first()
     if not p: return []
     appts = db.query(models.Appointment).filter(models.Appointment.patient_id == p.id).order_by(models.Appointment.start_time.desc()).all()
@@ -263,8 +237,10 @@ def cancel_patient_appointment(appt_id: int, user: models.User = Depends(get_cur
     if not appt: raise HTTPException(404, "Appointment not found")
     
     appt.status = "cancelled"
+    # Optional: Cancel invoice too
     inv = db.query(models.Invoice).filter(models.Invoice.appointment_id == appt.id, models.Invoice.status == "pending").first()
-    if inv: db.delete(inv)
+    if inv: inv.status = "cancelled"
+    
     db.commit()
     return {"message": "Cancelled"}
 
@@ -326,18 +302,13 @@ def update_patient_profile(data: schemas.PatientProfileUpdate, user: models.User
     if user.role != "patient": 
         raise HTTPException(403, "Access denied")
     
-    # 1. Update User Table
     if data.full_name: user.full_name = data.full_name
     if data.address is not None: user.address = data.address
-    
-    # 2. Update Patient Table
     p = db.query(models.Patient).filter(models.Patient.user_id == user.id).first()
     if not p: raise HTTPException(404, "Patient profile not found")
-    
     if data.age is not None: p.age = data.age
     if data.gender: p.gender = data.gender
     if data.blood_group: p.blood_group = data.blood_group
-    
     db.commit()
     return {"message": "Profile updated successfully"}
 
@@ -362,7 +333,8 @@ def get_doctor_dashboard(user: models.User = Depends(get_current_user), db: Sess
     appts = db.query(models.Appointment).filter(
         models.Appointment.doctor_id == doc.id,
         models.Appointment.start_time >= now.replace(hour=0, minute=0, second=0),
-        models.Appointment.start_time < now.replace(hour=0, minute=0, second=0) + timedelta(days=1)
+        models.Appointment.start_time < now.replace(hour=0, minute=0, second=0) + timedelta(days=1),
+        models.Appointment.status != "cancelled" # DOCTORS ONLY SEE ACTIVE
     ).order_by(models.Appointment.start_time).all()
     
     revenue = db.query(func.sum(models.Invoice.amount)).join(models.Appointment).filter(models.Appointment.doctor_id == doc.id, models.Invoice.status == "paid").scalar() or 0
@@ -493,7 +465,11 @@ def add_inv(item: schemas.InventoryItemCreate, user: models.User = Depends(get_c
 @doctor_router.get("/schedule")
 def get_sched(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
-    return db.query(models.Appointment).filter(models.Appointment.doctor_id == doc.id).all()
+    # DOCTORS ONLY SEE ACTIVE
+    return db.query(models.Appointment).filter(
+        models.Appointment.doctor_id == doc.id,
+        models.Appointment.status != "cancelled" 
+    ).all()
 
 @doctor_router.get("/appointments")
 def get_daily_appointments(date: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -510,7 +486,8 @@ def get_daily_appointments(date: str, user: models.User = Depends(get_current_us
     appts = db.query(models.Appointment).filter(
         models.Appointment.doctor_id == doc.id,
         models.Appointment.start_time >= start_of_day,
-        models.Appointment.start_time <= end_of_day
+        models.Appointment.start_time <= end_of_day,
+        models.Appointment.status != "cancelled" # DOCTORS ONLY SEE ACTIVE
     ).all()
     
     res = []
@@ -643,7 +620,6 @@ def add_rec(id: int, data: schemas.RecordCreate, user: models.User = Depends(get
     db.add(models.MedicalRecord(patient_id=id, doctor_id=doc.id, diagnosis=data.diagnosis, prescription=data.prescription, notes=data.notes, date=datetime.utcnow()))
     db.commit(); return {"message": "Saved"}
 
-# ================= AUTH ROUTES =================
 @auth_router.post("/login")
 def login(f: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     u = db.query(models.User).filter(models.User.email == f.username.lower().strip()).first()
@@ -670,17 +646,11 @@ def register(user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Se
     otp = generate_otp()
     expires_at = datetime.utcnow() + timedelta(minutes=10)
 
-    # UPDATED: Use the new template logic
     def send_email_safe(email, name, otp_code):
         if email_service:
             try:
                 txt_msg, html_msg = get_otp_email_template(name, otp_code)
-                email_service.send(
-                    to_email=email, 
-                    subject="Verify your Account - Al-Shifa Dental", 
-                    body=txt_msg, 
-                    html_body=html_msg
-                )
+                email_service.send(to_email=email, subject="Verify your Account - Al-Shifa Dental", body=txt_msg, html_body=html_msg)
             except Exception as e: 
                 logger.error(f"Failed to send email to {email}: {e}")
         else:
@@ -695,16 +665,7 @@ def register(user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Se
             db.commit()
         else:
             hashed_pw = get_password_hash(user.password)
-            new_user = models.User(
-                email=email_clean, 
-                password_hash=hashed_pw, 
-                full_name=user.full_name, 
-                role=user.role, 
-                is_email_verified=False, 
-                otp_code=otp, 
-                otp_expires_at=expires_at,
-                address=user.address
-            )
+            new_user = models.User(email=email_clean, password_hash=hashed_pw, full_name=user.full_name, role=user.role, is_email_verified=False, otp_code=otp, otp_expires_at=expires_at, address=user.address)
             db.add(new_user); db.flush() 
             if user.role == "organization": db.add(models.Hospital(owner_id=new_user.id, name=user.full_name, address=user.address or "Pending", is_verified=False))
             elif user.role == "patient": db.add(models.Patient(user_id=new_user.id, age=user.age or 0, gender=user.gender))
@@ -726,60 +687,44 @@ def verify_otp(data: schemas.VerifyOTP, db: Session = Depends(get_db)):
     email_clean = data.email.lower().strip()
     user = db.query(models.User).filter(models.User.email == email_clean).first()
     if not user: raise HTTPException(400, "User not found")
-    
     if user.is_email_verified: return {"message": "Already verified", "status": "active", "role": user.role}
     if user.otp_expires_at and datetime.utcnow() > user.otp_expires_at: raise HTTPException(400, "OTP has expired")
     if str(user.otp_code).strip() != str(data.otp.strip()): raise HTTPException(400, "Invalid OTP")
-        
-    user.is_email_verified = True
-    user.otp_code = None
+    user.is_email_verified = True; user.otp_code = None
     db.commit()
     return {"message": "Verified", "status": "active", "role": user.role}
-# In backend/main.py
 
 @auth_router.get("/me", response_model=schemas.UserOut)
 def me(u: models.User = Depends(get_current_user), db: Session = Depends(get_db)): 
-    # Inject doctor-specific fields into the response if applicable
     if u.role == "doctor":
         d = db.query(models.Doctor).filter(models.Doctor.user_id == u.id).first()
-        if d:
-            u.specialization = d.specialization
-            u.license_number = d.license_number
+        if d: u.specialization = d.specialization; u.license_number = d.license_number
     return u
 
 @auth_router.put("/profile")
 def update_user_profile(data: schemas.UserProfileUpdate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if data.email != user.email:
-        if db.query(models.User).filter(models.User.email == data.email).first():
-            raise HTTPException(400, "Email already in use")
+        if db.query(models.User).filter(models.User.email == data.email).first(): raise HTTPException(400, "Email already in use")
         user.email = data.email
-    
     user.full_name = data.full_name
     if data.phone_number: user.phone_number = data.phone_number
     if data.address: user.address = data.address
-
-    # If Doctor, update doctor table
     if user.role == "doctor":
         d = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
         if d:
             if data.specialization: d.specialization = data.specialization
             if data.license_number: d.license_number = data.license_number
-
-    # If Organization, sync phone to hospital record
     if user.role == "organization":
         h = db.query(models.Hospital).filter(models.Hospital.owner_id == user.id).first()
         if h and data.phone_number: h.phone_number = data.phone_number
-
     db.commit()
     return {"message": "Profile updated successfully"}
-# ---------------------------------
 
 @auth_router.get("/hospitals")
 def get_verified_hospitals(db: Session = Depends(get_db)):
     hospitals = db.query(models.Hospital).filter(models.Hospital.is_verified == True).all()
     return [{"id": h.id, "name": h.name, "address": h.address} for h in hospitals]
 
-# ================= ADMIN ROUTES =================
 @admin_router.get("/stats")
 def get_admin_stats(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "admin": raise HTTPException(403)
@@ -800,51 +745,23 @@ def get_all_organizations(user: models.User = Depends(get_current_user), db: Ses
 @admin_router.get("/patients")
 def get_all_patients(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "admin": raise HTTPException(403)
-    
     patients = db.query(models.Patient).all()
     results = []
-    
     for p in patients:
-        # Join with User table to get name and email
         u = p.user
-        results.append({
-            "id": p.id,
-            "name": u.full_name if u else "Unknown",
-            "email": u.email if u else "Unknown",
-            "age": p.age,
-            "gender": p.gender,
-            "created_at": u.created_at.strftime("%Y-%m-%d") if u else "N/A"
-        })
-        
+        results.append({"id": p.id, "name": u.full_name if u else "Unknown", "email": u.email if u else "Unknown", "age": p.age, "gender": p.gender, "created_at": u.created_at.strftime("%Y-%m-%d") if u else "N/A"})
     return results
 
 @admin_router.get("/pending-requests")
 def get_pending_requests(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "admin": raise HTTPException(403)
-    
     pending_docs = db.query(models.Doctor).filter(models.Doctor.is_verified == False).all()
     pending_orgs = db.query(models.Hospital).filter(models.Hospital.is_verified == False).all()
-    
     results = []
     for d in pending_docs:
-        results.append({
-            "id": d.id, 
-            "type": "doctor", 
-            "name": d.user.full_name, 
-            "email": d.user.email, 
-            "info": f"Spec: {d.specialization} | Lic: {d.license_number}",
-            "date": d.user.created_at
-        })
+        results.append({"id": d.id, "type": "doctor", "name": d.user.full_name, "email": d.user.email, "info": f"Spec: {d.specialization} | Lic: {d.license_number}", "date": d.user.created_at})
     for h in pending_orgs:
-        results.append({
-            "id": h.id, 
-            "type": "organization", 
-            "name": h.name, 
-            "email": h.owner.email, 
-            "info": f"Address: {h.address}",
-            "date": h.owner.created_at
-        })
-        
+        results.append({"id": h.id, "type": "organization", "name": h.name, "email": h.owner.email, "info": f"Address: {h.address}", "date": h.owner.created_at})
     return results
 
 @admin_router.get("/patients/{id}")
@@ -852,23 +769,9 @@ def get_admin_patient_details(id: int, user: models.User = Depends(get_current_u
     if user.role != "admin": raise HTTPException(403)
     p = db.query(models.Patient).filter(models.Patient.id == id).first()
     if not p: raise HTTPException(404, "Patient not found")
-    
     recs = db.query(models.MedicalRecord).filter(models.MedicalRecord.patient_id == id).all()
     invs = db.query(models.Invoice).filter(models.Invoice.patient_id == id).all()
-    
-    return {
-        "id": p.id,
-        "full_name": p.user.full_name,
-        "email": p.user.email,
-        "phone": p.user.phone_number or "N/A",
-        "age": p.age,
-        "gender": p.gender,
-        "address": p.user.address or "N/A",
-        "blood_group": getattr(p, "blood_group", "N/A"),
-        "history": [{"date": r.date, "diagnosis": r.diagnosis, "doctor": r.doctor.user.full_name} for r in recs],
-        "invoices_count": len(invs),
-        "last_visit": recs[-1].date if recs else None
-    }
+    return {"id": p.id, "full_name": p.user.full_name, "email": p.user.email, "phone": p.user.phone_number or "N/A", "age": p.age, "gender": p.gender, "address": p.user.address or "N/A", "blood_group": getattr(p, "blood_group", "N/A"), "history": [{"date": r.date, "diagnosis": r.diagnosis, "doctor": r.doctor.user.full_name} for r in recs], "invoices_count": len(invs), "last_visit": recs[-1].date if recs else None}
 
 @admin_router.post("/approve-account/{id}")
 def approve_account(id: int, type: str, db: Session = Depends(get_db)):
@@ -894,7 +797,6 @@ def delete_entity(type: str, id: int, db: Session = Depends(get_db)):
         db.commit(); return {"message": "Deleted"}
     except: db.rollback(); raise HTTPException(500, "Delete failed")
 
-# ================= ORGANIZATION ROUTES =================
 @org_router.get("/stats")
 def get_org_stats(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "organization": raise HTTPException(403)
@@ -915,20 +817,14 @@ def get_org_doctors(user: models.User = Depends(get_current_user), db: Session =
     h = db.query(models.Hospital).filter(models.Hospital.owner_id == user.id).first()
     return [{"id": d.id, "full_name": d.user.full_name, "email": d.user.email, "specialization": d.specialization, "license": d.license_number, "is_verified": d.is_verified} for d in h.doctors]
 
-# --- NEW: LOCATION REQUEST ROUTE ---
 @org_router.post("/location-request")
 def request_location_change(data: schemas.LocationUpdate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "organization": raise HTTPException(403)
     h = db.query(models.Hospital).filter(models.Hospital.owner_id == user.id).first()
     if not h: raise HTTPException(404, "Hospital profile not found")
-    
-    h.pending_address = data.address
-    h.pending_pincode = data.pincode
-    h.pending_lat = data.lat
-    h.pending_lng = data.lng
+    h.pending_address = data.address; h.pending_pincode = data.pincode; h.pending_lat = data.lat; h.pending_lng = data.lng
     db.commit()
     return {"message": "Location change requested. Waiting for Admin approval."}
-# -----------------------------------
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])

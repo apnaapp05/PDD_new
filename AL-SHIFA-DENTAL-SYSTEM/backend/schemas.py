@@ -171,3 +171,8 @@ class CaseOut(BaseModel):
     patient_name: str
     class Config:
         from_attributes = True
+# --- AGENT SCHEMAS ---
+class BookingRequest(BaseModel):
+    user_query: str
+    patient_id: str
+    patient_name: str

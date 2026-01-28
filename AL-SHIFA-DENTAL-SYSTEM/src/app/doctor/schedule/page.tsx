@@ -74,7 +74,7 @@ export default function DoctorSchedulePage() {
       }
       
       setAppointments(newAppts);
-      setConfig(resSettings.data);
+      setConfig(prev => ({ ...prev, ...resSettings.data }));
       prevCountRef.current = newAppts.length;
 
     } catch (e) {
@@ -348,17 +348,17 @@ export default function DoctorSchedulePage() {
                  <div className="grid grid-cols-2 gap-8">
                     <div className="space-y-3">
                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Start Time</label>
-                       <Input type="time" value={config.work_start_time} onChange={(e) => setConfig({...config, work_start_time: e.target.value})} className="h-12 bg-slate-50" />
+                       <Input type="time" value={config.work_start_time || "09:00"} onChange={(e) => setConfig({...config, work_start_time: e.target.value})} className="h-12 bg-slate-50" />
                     </div>
                     <div className="space-y-3">
                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">End Time</label>
-                       <Input type="time" value={config.work_end_time} onChange={(e) => setConfig({...config, work_end_time: e.target.value})} className="h-12 bg-slate-50" />
+                       <Input type="time" value={config.work_end_time || "17:00"} onChange={(e) => setConfig({...config, work_end_time: e.target.value})} className="h-12 bg-slate-50" />
                     </div>
                  </div>
                  <div className="grid grid-cols-2 gap-8">
                     <div className="space-y-3">
                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Slot Duration</label>
-                       <Select value={config.slot_duration.toString()} onValueChange={(val) => setConfig({...config, slot_duration: parseInt(val)})}>
+                       <Select value={config.slot_duration?.toString() || "30"} onValueChange={(val) => setConfig({...config, slot_duration: parseInt(val)})}>
                           <SelectTrigger className="h-12 bg-slate-50"><SelectValue /></SelectTrigger>
                           <SelectContent>
                              <SelectItem value="15">15 Min</SelectItem>
@@ -370,7 +370,7 @@ export default function DoctorSchedulePage() {
                     </div>
                     <div className="space-y-3">
                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Buffer Time</label>
-                       <Select value={config.break_duration.toString()} onValueChange={(val) => setConfig({...config, break_duration: parseInt(val)})}>
+                       <Select value={config.break_duration?.toString() || "5"} onValueChange={(val) => setConfig({...config, break_duration: parseInt(val)})}>
                           <SelectTrigger className="h-12 bg-slate-50"><SelectValue /></SelectTrigger>
                           <SelectContent>
                              <SelectItem value="0">0 Min</SelectItem>
