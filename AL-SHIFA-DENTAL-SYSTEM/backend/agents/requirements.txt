@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+pydantic
+google-genai
+opentelemetry-api
+opentelemetry-sdk
