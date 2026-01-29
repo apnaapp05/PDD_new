@@ -1,6 +1,6 @@
 // src/components/chat/SmartAssistant.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Bot, User, Loader2, Sparkles } from 'lucide-react';
+import { Send, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -12,8 +12,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
-  // NEW: Dynamic Options support
-  options?: string[]; 
+  options?: string[]; // Dynamic Options
 }
 
 interface SmartAssistantProps {
@@ -27,9 +26,9 @@ export default function SmartAssistant({ agentType, placeholder, onClose }: Smar
     {
       id: '1',
       role: 'assistant',
-      content: `Hello! I am your ${agentType.replace('_', ' ')} assistant. How can I help you today?`,
+      content: `Hello! I am your ${agentType.replace('_', ' ')} assistant.`,
       timestamp: new Date(),
-      options: ['Show Schedule', 'Find Slots', 'Book Appointment'] // Default start options
+      options: ['Show Schedule', 'Find Slots', 'Book Appointment'] // Initial Defaults
     }
   ]);
   const [input, setInput] = useState('');
@@ -45,7 +44,7 @@ export default function SmartAssistant({ agentType, placeholder, onClose }: Smar
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
 
-    // Add User Message
+    // 1. Add User Message
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -57,22 +56,22 @@ export default function SmartAssistant({ agentType, placeholder, onClose }: Smar
     setIsLoading(true);
 
     try {
-      // Send History + Query
+      // 2. Call Backend
       const history = messages.map(m => ({ role: m.role, text: m.content }));
       
       const res = await api.post('/agent/router', {
         user_query: text,
         role: agentType,
-        history: history.slice(-5) // Keep context light
+        history: history.slice(-5) 
       });
 
-      // Add AI Response with Dynamic Options
+      // 3. Add AI Response (With Dynamic Options)
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: res.data.response,
         timestamp: new Date(),
-        options: res.data.options || [] // Catch backend options
+        options: res.data.options || [] // <--- Backend controls this list size
       };
       setMessages(prev => [...prev, aiMsg]);
 
@@ -81,7 +80,7 @@ export default function SmartAssistant({ agentType, placeholder, onClose }: Smar
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         role: 'assistant',
-        content: "Sorry, I encountered a connection error. Please try again.",
+        content: "I encountered a network error.",
         timestamp: new Date(),
         options: ['Retry', 'Main Menu']
       }]);
@@ -108,7 +107,7 @@ export default function SmartAssistant({ agentType, placeholder, onClose }: Smar
             <div key={msg.id} className={cn("flex w-full", msg.role === 'user' ? "justify-end" : "justify-start")}>
               <div className={cn("flex flex-col max-w-[85%] gap-2", msg.role === 'user' ? "items-end" : "items-start")}>
                 
-                {/* Message Bubble */}
+                {/* Bubble */}
                 <div className={cn(
                   "p-3 rounded-2xl text-sm shadow-sm",
                   msg.role === 'user' 
@@ -118,21 +117,21 @@ export default function SmartAssistant({ agentType, placeholder, onClose }: Smar
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 </div>
 
-                {/* DYNAMIC OPTIONS CHIPS (Only for Assistant) */}
+                {/* DYNAMIC CHIPS - Only show for assistant messages */}
                 {msg.role === 'assistant' && msg.options && msg.options.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-1">
                     {msg.options.map((opt, idx) => (
                       <button
                         key={idx}
                         onClick={() => handleSend(opt)}
-                        className="px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200 hover:bg-indigo-100 transition-colors"
+                        className="px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300 transition-colors shadow-sm"
                       >
                         {opt}
                       </button>
                     ))}
                   </div>
                 )}
-
+                
                 <span className="text-[10px] text-slate-400 px-1">
                   {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
@@ -150,12 +149,9 @@ export default function SmartAssistant({ agentType, placeholder, onClose }: Smar
         </div>
       </ScrollArea>
 
-      {/* Input Area */}
+      {/* Input */}
       <div className="p-4 bg-white border-t border-slate-100">
-        <form 
-          onSubmit={(e) => { e.preventDefault(); handleSend(input); }}
-          className="flex gap-2"
-        >
+        <form onSubmit={(e) => { e.preventDefault(); handleSend(input); }} className="flex gap-2">
           <Input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
