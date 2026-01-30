@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Send, Sparkles, Loader2, Bot, User, X } from "lucide-react";
+import { Send, Sparkles, Loader2, Bot, User, X, Calendar as CalendarIcon, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { api } from "@/services/api";
+import { api } from "@/lib/api";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  timestamp: Date;
+  timestamp: string;
+  options?: string[];
 }
 
 interface SmartAssistantProps {
@@ -19,138 +20,190 @@ interface SmartAssistantProps {
   onClose?: () => void;
 }
 
-export default function SmartAssistant({ agentType, placeholder, onClose }: SmartAssistantProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content: `Hello! I am your ${agentType} Agent (Version 3.0).`,
-      timestamp: new Date()
-    }
-  ]);
+// DEFINING UNIQUE MENUS FOR EACH AGENT
+const AGENT_MENUS: Record<string, string[]> = {
+  appointment: [
+    "Show Today's Schedule", 
+    "Book Appointment", 
+    "Reschedule Appointment", 
+    "Cancel Appointment"
+  ],
+  revenue: [
+    "Create New Invoice", 
+    "Show Unpaid Bills", 
+    "Daily Report", 
+    "Weekly Report"
+  ],
+  inventory: [
+    "Check Low Stock", 
+    "Add New Item", 
+    "Usage Report"
+  ],
+  casetracking: [
+    "Search Patient Record", 
+    "Add Clinical Note", 
+    "View Prescriptions"
+  ]
+};
 
-  // STRICT: ONLY 2 OPTIONS INITIALLY.
-  // The old "Find slots for tomorrow" is GONE.
-  const [currentOptions, setCurrentOptions] = useState<string[]>(
-    agentType === "appointment" 
-      ? ["Show Today's Schedule", "Cancel Appointment"] 
-      : ["Main Menu"]
-  );
-  
+export default function SmartAssistant({ agentType, placeholder, onClose }: SmartAssistantProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollEndRef = useRef<HTMLDivElement>(null);
+
+  // 1. INITIALIZE WITH CORRECT MENU
+  useEffect(() => {
+    const saved = localStorage.getItem(`chat_history_${agentType}`);
+    if (saved) {
+      try {
+        setMessages(JSON.parse(saved));
+      } catch (e) {
+        initChat();
+      }
+    } else {
+      initChat();
+    }
+  }, [agentType]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (messages.length > 0) {
+      localStorage.setItem(`chat_history_${agentType}`, JSON.stringify(messages));
     }
-  }, [messages]);
+  }, [messages, agentType]);
+
+  useEffect(() => {
+    scrollEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading]);
+
+  const initChat = () => {
+    // Select the correct menu based on agentType (fallback to Appointment if unknown)
+    const startOptions = AGENT_MENUS[agentType] || AGENT_MENUS["appointment"];
+    
+    setMessages([{
+      id: "1",
+      role: "assistant",
+      content: `Hello! I am your ${agentType.replace("_", " ")} Assistant.`,
+      timestamp: new Date().toISOString(),
+      options: startOptions
+    }]);
+  };
+
+  const clearHistory = () => {
+    localStorage.removeItem(`chat_history_${agentType}`);
+    initChat();
+  };
 
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
 
-    // 1. Add User Message
     const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: text,
-      timestamp: new Date()
+      content: text.startsWith("CALENDAR_DATE:") ? `Selected Date: ${text.split(":")[1].split("|")[0]}` : text,
+      timestamp: new Date().toISOString()
     };
     setMessages(prev => [...prev, userMsg]);
     setInput("");
     setIsLoading(true);
-    setCurrentOptions([]); // CLEAR OPTIONS WHILE LOADING
 
     try {
-      // 2. Call Backend
       const res = await api.post("/agent/router", {
         user_query: text,
         role: agentType,
-        history: [] 
+        history: []
       });
 
-      // 3. Add Response
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content: res.data.response,
-        timestamp: new Date()
+        timestamp: new Date().toISOString(),
+        options: res.data.options || []
       };
       setMessages(prev => [...prev, aiMsg]);
-      
-      // 4. SET OPTIONS FROM BACKEND
-      if (res.data.options && res.data.options.length > 0) {
-        setCurrentOptions(res.data.options);
-      } else {
-        setCurrentOptions(["Main Menu"]);
-      }
 
     } catch (error) {
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         role: "assistant",
-        content: "Error: Backend unreachable.",
-        timestamp: new Date()
+        content: "Error communicating with agent.",
+        timestamp: new Date().toISOString(),
+        options: ["Main Menu"]
       }]);
-      setCurrentOptions(["Retry"]);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const isCalendarOption = (opt: string) => opt.startsWith("__UI_CALENDAR__");
+
   return (
     <div className="flex flex-col h-[600px] w-full max-w-md bg-white rounded-xl shadow-2xl border border-indigo-100 overflow-hidden font-sans">
-      {/* HEADER */}
-      <div className="p-4 bg-slate-900 flex justify-between items-center text-white shadow-md">
+      <div className="p-4 bg-indigo-600 flex justify-between items-center text-white shadow-md z-10">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-green-400" />
-          <div>
-            <h3 className="font-bold text-sm capitalize">{agentType} Agent</h3>
-            <span className="text-[10px] text-green-400 font-bold bg-green-900/50 px-2 py-0.5 rounded-full border border-green-700">VERSION 3.0</span>
-          </div>
+          <Sparkles className="w-5 h-5 text-white" />
+          <span className="font-bold text-sm capitalize">{agentType.replace("_", " ")} Agent</span>
         </div>
-        {onClose && <button onClick={onClose}><X className="w-5 h-5" /></button>}
+        <div className="flex gap-2">
+            <button onClick={clearHistory} className="p-1 hover:bg-white/20 rounded-full transition-colors" title="Clear History">
+                <Trash2 className="w-4 h-4" />
+            </button>
+            {onClose && <button onClick={onClose}><X className="w-5 h-5" /></button>}
+        </div>
       </div>
 
-      {/* CHAT AREA */}
-      <ScrollArea className="flex-1 p-4 bg-slate-50" ref={scrollRef}>
-        <div className="space-y-4 pb-2">
+      <ScrollArea className="flex-1 p-4 bg-slate-50/50">
+        <div className="space-y-6 pb-2">
           {messages.map((msg) => (
-            <div key={msg.id} className={cn("flex w-full", msg.role === "user" ? "justify-end" : "justify-start")}>
-              <div className={cn("p-3.5 rounded-xl text-sm max-w-[85%] shadow-sm leading-relaxed", msg.role === "user" ? "bg-indigo-600 text-white rounded-br-none" : "bg-white border border-slate-200 text-slate-800 rounded-bl-none")}>
-                <p className="whitespace-pre-wrap">{msg.content}</p>
+            <div key={msg.id} className={cn("flex w-full animate-in fade-in slide-in-from-bottom-2 duration-300", msg.role === "user" ? "justify-end" : "justify-start")}>
+              {msg.role === "assistant" && (
+                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center mr-2 border border-indigo-200 shrink-0"><Bot className="w-4 h-4 text-indigo-600" /></div>
+              )}
+              <div className={cn("flex flex-col max-w-[90%] gap-2", msg.role === "user" ? "items-end" : "items-start")}>
+                <div className={cn("p-3.5 rounded-2xl text-sm shadow-sm leading-relaxed", msg.role === "user" ? "bg-indigo-600 text-white rounded-br-none" : "bg-white text-slate-700 border border-slate-100 rounded-bl-none")}>
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                </div>
+                {msg.role === "assistant" && msg.options && msg.options.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {msg.options.map((opt, idx) => {
+                      if (isCalendarOption(opt)) {
+                        const context = opt.split("|")[1];
+                        return (
+                          <div key={idx} className="w-full bg-white p-3 rounded-xl border border-indigo-100 shadow-sm">
+                            <div className="flex items-center gap-2 mb-2 text-indigo-700 text-xs font-bold"><CalendarIcon className="w-4 h-4" /> Select Date</div>
+                            <input 
+                              type="date" 
+                              className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                              min={new Date().toISOString().split("T")[0]}
+                              onChange={(e) => { if(e.target.value) handleSend(`CALENDAR_DATE: ${e.target.value} | ${context}`); }}
+                            />
+                          </div>
+                        );
+                      }
+                      return (
+                        <button key={idx} onClick={() => handleSend(opt)} className="px-3 py-2 text-xs font-semibold bg-white text-indigo-700 rounded-lg border border-indigo-200 hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-95 text-left">
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <span className="text-[10px] text-slate-400 px-1">
+                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </span>
               </div>
             </div>
           ))}
-          {isLoading && <div className="text-xs text-slate-400 ml-2 animate-pulse">Processing...</div>}
+          {isLoading && <div className="flex justify-start items-center gap-2 pl-10"><Loader2 className="w-4 h-4 animate-spin text-indigo-600" /><span className="text-xs text-slate-500">Processing...</span></div>}
+          <div ref={scrollEndRef} />
         </div>
       </ScrollArea>
 
-      {/* ACTION BAR */}
-      <div className="bg-white border-t border-slate-200 p-3">
-        {currentOptions.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3">
-            {currentOptions.map((opt, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSend(opt)}
-                className="px-3 py-1.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors"
-              >
-                {opt}
-              </button>
-            ))}
-          </div>
-        )}
-
+      <div className="p-4 bg-white border-t border-slate-100">
         <form onSubmit={(e) => { e.preventDefault(); handleSend(input); }} className="flex gap-2">
-          <Input 
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type command..."
-            className="flex-1 bg-slate-50"
-          />
-          <Button type="submit" size="icon" className="bg-indigo-600"><Send className="w-4 h-4" /></Button>
+          <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder={placeholder || "Type here..."} className="flex-1 bg-slate-50 border-slate-200 focus-visible:ring-indigo-500 rounded-xl" disabled={isLoading} />
+          <Button type="submit" size="icon" className="rounded-xl bg-indigo-600 hover:bg-indigo-700" disabled={!input.trim() || isLoading}><Send className="w-4 h-4" /></Button>
         </form>
       </div>
     </div>

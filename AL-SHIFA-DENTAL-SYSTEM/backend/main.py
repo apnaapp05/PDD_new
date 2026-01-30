@@ -1,3 +1,4 @@
+import csv
 # backend/main.py
 
 from fastapi import FastAPI, Depends, HTTPException, status, Request, APIRouter, BackgroundTasks, Query, UploadFile, File
@@ -831,3 +832,177 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 app.include_router(auth_router); app.include_router(admin_router); app.include_router(org_router); app.include_router(doctor_router); app.include_router(public_router)
 app.include_router(agent_routes.router)
 os.makedirs("media", exist_ok=True); app.mount("/media", StaticFiles(directory="media"), name="media")
+
+
+@app.post("/api/inventory/upload")
+async def upload_inventory(
+    file: UploadFile = File(...), 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    # 1. Validate File Type
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Invalid file type. Please upload a CSV.")
+
+    # 2. Decode Content
+    content = await file.read()
+    decoded = content.decode("utf-8").splitlines()
+    reader = csv.DictReader(decoded)
+
+    # 3. Validate Headers (Flexible Check)
+    # Allow "Item Name" OR "name", "Min Threshold" OR "min", etc.
+    headers = [h.lower().strip() for h in reader.fieldnames]
+    required = ["item name", "quantity", "unit", "min threshold"]
+    
+    # Check if all required keys exist in some form
+    if not all(any(r in h for h in headers) for r in required):
+        return JSONResponse(
+            status_code=400, 
+            content={"detail": "CSV Headers must be: 'Item Name', 'Quantity', 'Unit', 'Min Threshold'"}
+        )
+
+    # 4. Process Rows
+    count = 0
+    # Get Hospital ID
+    doc = db.query(models.Doctor).filter(models.Doctor.user_id == current_user.id).first()
+    hid = doc.hospital_id if doc and hasattr(doc, "hospital_id") else 1
+
+    try:
+        for row in reader:
+            # clean keys
+            row = {k.lower().strip(): v for k, v in row.items()}
+            
+            # Map CSV columns to DB fields safely
+            name = row.get("item name") or row.get("name")
+            qty = int(row.get("quantity") or row.get("qty") or 0)
+            unit = row.get("unit")
+            threshold = int(row.get("min threshold") or row.get("min") or row.get("threshold") or 10)
+
+            if name:
+                # Check if exists, update or create
+                existing = db.query(models.InventoryItem).filter(
+                    models.InventoryItem.hospital_id == hid, 
+                    models.InventoryItem.name == name
+                ).first()
+                
+                if existing:
+                    existing.quantity = qty
+                    existing.min_threshold = threshold # Update threshold too
+                else:
+                    new_item = models.InventoryItem(
+                        hospital_id=hid,
+                        name=name,
+                        quantity=qty,
+                        unit=unit,
+                        min_threshold=threshold
+                    )
+                    db.add(new_item)
+                count += 1
+        
+        db.commit()
+        return {"message": f"Successfully processed {count} items."}
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Row Error: {str(e)}")
+
+
+# --- CSV UPLOAD ENDPOINTS ---
+
+@app.post("/api/inventory/upload")
+async def upload_inventory(
+    file: UploadFile = File(...), 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Please upload a CSV file.")
+
+    content = await file.read()
+    # Decode specifically to handle potential BOM or encoding issues
+    decoded = content.decode("utf-8-sig").splitlines()
+    reader = csv.DictReader(decoded)
+
+    # Normalize headers to lowercase
+    headers = [h.lower().strip() for h in reader.fieldnames] if reader.fieldnames else []
+    
+    # Validation: Check for key columns
+    if not any("name" in h for h in headers) or not any("qty" in h or "quantity" in h for h in headers):
+        return JSONResponse(status_code=400, content={"detail": "CSV must have 'Item Name' and 'Quantity' columns."})
+
+    doc = db.query(models.Doctor).filter(models.Doctor.user_id == current_user.id).first()
+    hid = doc.hospital_id if doc else 1
+    count = 0
+
+    try:
+        for row in reader:
+            # Normalize row keys
+            row = {k.lower().strip(): v for k, v in row.items()}
+            
+            # Extract data mapping your specific headers
+            name = row.get("item name") or row.get("name")
+            if not name: continue
+            
+            qty = int(row.get("quantity") or row.get("qty") or 0)
+            unit = row.get("unit") or "Pcs"
+            threshold = int(row.get("min threshold") or row.get("threshold") or row.get("min") or 10)
+
+            # Update or Create
+            existing = db.query(models.InventoryItem).filter(models.InventoryItem.hospital_id == hid, models.InventoryItem.name == name).first()
+            if existing:
+                existing.quantity = qty
+                existing.unit = unit
+                existing.min_threshold = threshold
+            else:
+                db.add(models.InventoryItem(hospital_id=hid, name=name, quantity=qty, unit=unit, min_threshold=threshold))
+            count += 1
+        
+        db.commit()
+        return {"message": f"✅ Processed {count} inventory items."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+@app.post("/api/treatments/upload")
+async def upload_treatments(
+    file: UploadFile = File(...), 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Please upload a CSV file.")
+
+    content = await file.read()
+    decoded = content.decode("utf-8-sig").splitlines()
+    reader = csv.DictReader(decoded)
+    
+    doc = db.query(models.Doctor).filter(models.Doctor.user_id == current_user.id).first()
+    if not doc: raise HTTPException(status_code=400, detail="Doctor profile not found.")
+    
+    count = 0
+    try:
+        for row in reader:
+            row = {k.lower().strip(): v for k, v in row.items()}
+            
+            # Map your specific headers: "Treatment Name", "Cost", "Description"
+            name = row.get("treatment name") or row.get("name")
+            if not name: continue
+            
+            cost = float(row.get("cost") or row.get("price") or 0)
+            desc = row.get("description") or row.get("desc") or ""
+
+            # Update or Create
+            existing = db.query(models.Treatment).filter(models.Treatment.doctor_id == doc.id, models.Treatment.name == name).first()
+            if existing:
+                existing.cost = cost
+                existing.description = desc
+            else:
+                db.add(models.Treatment(doctor_id=doc.id, name=name, cost=cost, description=desc))
+            count += 1
+            
+        db.commit()
+        return {"message": f"✅ Processed {count} treatments."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
