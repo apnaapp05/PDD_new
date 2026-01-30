@@ -397,7 +397,145 @@ async def upload_treatments(file: UploadFile = File(...), user: models.User = De
     except Exception as e: db.rollback(); raise HTTPException(400, f"Error: {str(e)}")
 
 @doctor_router.post("/inventory/upload")
-@app.post("/api/inventory/upload") # Dual route
+@app.post("/api/inventory/upload")
+async def upload_inventory(
+    file: UploadFile = File(...), 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Invalid file type. Please upload a CSV.")
+
+    content = await file.read()
+    # Decode with utf-8-sig to handle Excel BOM
+    decoded = content.decode("utf-8-sig").splitlines()
+    reader = csv.DictReader(decoded)
+
+    # Helper to normalize headers (strip spaces, lowercase)
+    headers = [h.lower().strip() for h in reader.fieldnames] if reader.fieldnames else []
+    
+    # Validation
+    if not any("name" in h for h in headers) or not any("qty" in h or "quantity" in h for h in headers):
+        return JSONResponse(status_code=400, content={"detail": "CSV must have 'Item Name' and 'Quantity' columns."})
+
+    # Get Hospital Context
+    doc = db.query(models.Doctor).filter(models.Doctor.user_id == current_user.id).first()
+    hid = doc.hospital_id if doc else 1
+    
+    count = 0
+    updated = 0
+
+    try:
+        for row in reader:
+            # Clean row keys
+            row = {k.lower().strip(): v for k, v in row.items()}
+            
+            name = row.get("item name") or row.get("name")
+            if not name: continue
+            
+            qty = int(row.get("quantity") or row.get("qty") or 0)
+            unit = row.get("unit") or "Pcs"
+            
+            # CAPTURE THRESHOLD (Look for 'min threshold', 'min', 'threshold')
+            threshold = int(row.get("min threshold") or row.get("min") or row.get("threshold") or 10)
+
+            # Update existing or Create new
+            existing = db.query(models.InventoryItem).filter(
+                models.InventoryItem.hospital_id == hid, 
+                models.InventoryItem.name == name
+            ).first()
+            
+            if existing:
+                existing.quantity = qty
+                existing.unit = unit
+                existing.min_threshold = threshold # Update threshold
+                updated += 1
+            else:
+                new_item = models.InventoryItem(
+                    hospital_id=hid,
+                    name=name,
+                    quantity=qty,
+                    unit=unit,
+                    min_threshold=threshold
+                )
+                db.add(new_item)
+                count += 1
+        
+        db.commit()
+        return {"message": f"✅ Upload Complete: {count} new, {updated} updated."}
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Row Error: {str(e)}")
+async def upload_inventory(
+    file: UploadFile = File(...), 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Invalid file type. Please upload a CSV.")
+
+    content = await file.read()
+    # Decode with utf-8-sig to handle Excel BOM
+    decoded = content.decode("utf-8-sig").splitlines()
+    reader = csv.DictReader(decoded)
+
+    # Helper to normalize headers (strip spaces, lowercase)
+    headers = [h.lower().strip() for h in reader.fieldnames] if reader.fieldnames else []
+    
+    # Validation
+    if not any("name" in h for h in headers) or not any("qty" in h or "quantity" in h for h in headers):
+        return JSONResponse(status_code=400, content={"detail": "CSV must have 'Item Name' and 'Quantity' columns."})
+
+    # Get Hospital Context
+    doc = db.query(models.Doctor).filter(models.Doctor.user_id == current_user.id).first()
+    hid = doc.hospital_id if doc else 1
+    
+    count = 0
+    updated = 0
+
+    try:
+        for row in reader:
+            # Clean row keys
+            row = {k.lower().strip(): v for k, v in row.items()}
+            
+            name = row.get("item name") or row.get("name")
+            if not name: continue
+            
+            qty = int(row.get("quantity") or row.get("qty") or 0)
+            unit = row.get("unit") or "Pcs"
+            
+            # CAPTURE THRESHOLD (Look for 'min threshold', 'min', 'threshold')
+            threshold = int(row.get("min threshold") or row.get("min") or row.get("threshold") or 10)
+
+            # Update existing or Create new
+            existing = db.query(models.InventoryItem).filter(
+                models.InventoryItem.hospital_id == hid, 
+                models.InventoryItem.name == name
+            ).first()
+            
+            if existing:
+                existing.quantity = qty
+                existing.unit = unit
+                existing.min_threshold = threshold # Update threshold
+                updated += 1
+            else:
+                new_item = models.InventoryItem(
+                    hospital_id=hid,
+                    name=name,
+                    quantity=qty,
+                    unit=unit,
+                    min_threshold=threshold
+                )
+                db.add(new_item)
+                count += 1
+        
+        db.commit()
+        return {"message": f"✅ Upload Complete: {count} new, {updated} updated."}
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Row Error: {str(e)}")
 async def upload_inventory(file: UploadFile = File(...), user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "doctor": raise HTTPException(403)
     doctor = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
@@ -798,3 +936,5 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 app.include_router(auth_router); app.include_router(admin_router); app.include_router(org_router); app.include_router(doctor_router); app.include_router(public_router)
 app.include_router(agent_routes.router)
 os.makedirs("media", exist_ok=True); app.mount("/media", StaticFiles(directory="media"), name="media")
+
+

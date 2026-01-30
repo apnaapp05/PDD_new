@@ -8,6 +8,46 @@ import re
 from dependencies import get_current_user, get_db
 import models
 
+def auto_deduct_stock(db: Session, hospital_id: int, treatment_name: str):
+    """Smartly deducts inventory based on treatment name"""
+    logs = []
+    
+    # 1. ALWAYS DEDUCT CONSUMABLES (Gloves & Masks)
+    consumables = ["Gloves", "Masks", "Dental Bibs", "Saliva Ejectors"]
+    for c_name in consumables:
+        # Fuzzy search for the item
+        item = db.query(models.InventoryItem).filter(
+            models.InventoryItem.hospital_id == hospital_id,
+            models.InventoryItem.name.ilike(f"%{c_name}%")
+        ).first()
+        
+        if item and item.quantity > 0:
+            item.quantity -= 1
+            logs.append(f"-1 {item.name}")
+
+    # 2. SPECIFIC DEDUCTION (Simple keyword matching)
+    # If Treatment is "Root Canal", look for "RCT" or "Files"
+    keywords = {
+        "Root Canal": ["RCT", "Files", "Gutta"],
+        "Extraction": ["Suture", "Gauze"],
+        "Implant": ["Implant", "Screw"],
+        "Filling": ["Composite", "Etchant", "Bonding"]
+    }
+    
+    for key, search_terms in keywords.items():
+        if key.lower() in treatment_name.lower():
+            for term in search_terms:
+                target = db.query(models.InventoryItem).filter(
+                    models.InventoryItem.hospital_id == hospital_id,
+                    models.InventoryItem.name.ilike(f"%{term}%")
+                ).first()
+                if target and target.quantity > 0:
+                    target.quantity -= 1
+                    logs.append(f"-1 {target.name}")
+    
+    db.commit()
+    return ", ".join(logs) if logs else "No stock deducted"
+
 router = APIRouter(prefix="/agent", tags=["AI Agents"])
 
 class AgentRequest(BaseModel):
@@ -41,16 +81,46 @@ def get_smart_slots(db: Session, doctor_id: int, date_str: str):
 
 def auto_maintain_appointments(db: Session, doctor_id: int):
     now = datetime.now()
-    expired = db.query(models.Appointment).filter(models.Appointment.doctor_id == doctor_id, models.Appointment.status.in_(["confirmed", "pending"]), models.Appointment.end_time < now).all()
+    
+    # 1. AUTO-CANCEL: Confirmed/Pending apps passed their end_time (Not Started)
+    expired = db.query(models.Appointment).filter(
+        models.Appointment.doctor_id == doctor_id, 
+        models.Appointment.status.in_(["confirmed", "pending"]), 
+        models.Appointment.end_time < now
+    ).all()
+    
     for appt in expired:
         appt.status = "cancelled"
         appt.notes = (appt.notes or "") + " [Auto-Cancelled]"
-        db.query(models.Invoice).filter(models.Invoice.patient_id == appt.patient_id, models.Invoice.status == "pending", func.date(models.Invoice.created_at) == appt.start_time.date()).delete(synchronize_session=False)
-    stale_limit = now - timedelta(hours=3)
-    stale = db.query(models.Appointment).filter(models.Appointment.doctor_id == doctor_id, models.Appointment.status == "in-progress", models.Appointment.start_time < stale_limit).all()
+        # DELETE pending invoice (Revenue won't be affected)
+        db.query(models.Invoice).filter(
+            models.Invoice.patient_id == appt.patient_id, 
+            models.Invoice.status == "pending", 
+            func.date(models.Invoice.created_at) == appt.start_time.date()
+        ).delete(synchronize_session=False)
+
+    # 2. AUTO-COMPLETE: In-Progress apps left open at end of day (e.g. after 8 PM or 3 hours stale)
+    # Let''s use "End of Day" logic: If it''s started and time is past 11:59 PM of that day? 
+    # Or simple stale check > 4 hours. Let''s do Stale > 4 hours for safety.
+    stale_limit = now - timedelta(hours=4)
+    stale = db.query(models.Appointment).filter(
+        models.Appointment.doctor_id == doctor_id, 
+        models.Appointment.status == "in-progress", 
+        models.Appointment.start_time < stale_limit
+    ).all()
+    
     for appt in stale:
         appt.status = "completed"
-        appt.notes = (appt.notes or "") + " [Auto-Timeout]"
+        appt.notes = (appt.notes or "") + " [Auto-Completed]"
+        # Revenue is already Pending, so it stays.
+        # Inventory Deduction:
+        try:
+            doc = db.query(models.Doctor).filter(models.Doctor.id == doctor_id).first()
+            hid = doc.hospital_id if doc else 1
+            if appt.treatment_type:
+                auto_deduct_stock(db, hid, appt.treatment_type)
+        except: pass
+
     if expired or stale: db.commit()
 
 # =============================================================================
@@ -158,7 +228,8 @@ def handle_revenue_logic(db: Session, doctor_id: int, query: str):
         p = q_norm.split(" | p:")
         n, v = p[0].replace("add: ", "").split(" - ₹")
         i = models.Invoice(patient_id=int(p[1]), amount=float(v), status="pending", created_at=now, details=n)
-        db.add(i); db.commit()
+        db.add(i)
+        db.commit()
         return {"response": f"✅ Bill Created: {n}", "options": [f"Cash | ID:{i.id}", f"Online | ID:{i.id}", "Later"]}
     
     # Pay Logic (Same)
@@ -223,7 +294,31 @@ def handle_appointment_logic(db: Session, doctor_id: int, query: str):
         p = q_norm.replace("do: ", "").split(" | p:")
         reason, date_part = p[0].split(" | ")
         dt = datetime.strptime(date_part.strip().replace(" @ ", " "), "%Y-%m-%d %I:%M %p")
-        db.add(models.Appointment(doctor_id=doctor_id, patient_id=int(p[1]), start_time=dt, end_time=dt+timedelta(minutes=30), status="confirmed", treatment_type=reason, notes=f"Reason: {reason}"))
+        new_appt = models.Appointment(
+            doctor_id=doctor_id, 
+            patient_id=int(p[1]), 
+            start_time=dt, 
+            end_time=dt+timedelta(minutes=30), 
+            status="confirmed", 
+            treatment_type=reason, 
+            notes=f"Reason: {reason}"
+        )
+        db.add(new_appt)
+        db.flush() # Get ID
+        
+        # Look up cost
+        trt = db.query(models.Treatment).filter(models.Treatment.name.ilike(reason), models.Treatment.doctor_id==doctor_id).first()
+        cost = trt.cost if trt else 500.0 # Default if not found
+        
+        # Create Pending Invoice Immediately
+        new_inv = models.Invoice(
+            patient_id=int(p[1]),
+            amount=cost,
+            status="pending",
+            created_at=datetime.utcnow(),
+            details=f"Appointment: {reason}"
+        )
+        db.add(new_inv)
         db.commit()
         return {"response": f"✅ Booked for **{reason}**.", "options": ["Show Schedule"]}
     
@@ -273,7 +368,18 @@ def handle_appointment_logic(db: Session, doctor_id: int, query: str):
         p = q_norm.split(" | appt:")
         n, v = p[0].replace("done: ", "").split(" - ₹")
         a = db.query(models.Appointment).filter(models.Appointment.id==int(p[1])).first()
-        a.status="completed"; i = models.Invoice(patient_id=a.patient_id, amount=float(v), status="pending", created_at=now, details=n); db.add(i); db.commit()
+        a.status="completed"; # Find existing pending invoice for this patient/date
+        i = db.query(models.Invoice).filter(
+            models.Invoice.patient_id==a.patient_id, 
+            models.Invoice.status=="pending",
+            func.date(models.Invoice.created_at)==func.date(now)
+        ).first()
+        
+        if not i:
+            # Fallback if no invoice exists
+            i = models.Invoice(patient_id=a.patient_id, amount=float(v), status="pending", created_at=now, details=n)
+            db.add(i)
+        db.commit()
         return {"response": f"✅ Completed. Mode?", "options": [f"Pay Cash | Inv:{i.id}", f"Pay Online | Inv:{i.id}", "Pay Later"]}
     if q_norm.startswith("pay cash") or q_norm.startswith("pay online"):
         i = db.query(models.Invoice).filter(models.Invoice.id==int(re.search(r"inv:(\d+)", q_norm).group(1))).first()
@@ -292,3 +398,7 @@ async def route_agent(request: AgentRequest, user: models.User=Depends(get_curre
         if agent=="inventory": return handle_inventory_logic(db, doc.id, request.user_query)
         return {"response": "Ready.", "options": ["Main Menu"]}
     except Exception as e: return {"response": f"Error: {str(e)}", "options": ["Retry"]}
+
+
+
+
