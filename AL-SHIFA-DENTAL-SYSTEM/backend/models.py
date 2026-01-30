@@ -9,11 +9,10 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     full_name = Column(String, index=True)
     email = Column(String, unique=True, index=True)
-    password_hash = Column(String)  # FIXED: Standardized to password_hash
+    password_hash = Column(String)  # STANDARDIZED FIELD NAME
     role = Column(String)
     is_active = Column(Boolean, default=True)
     
-    # Extra fields for verification/profile
     is_email_verified = Column(Boolean, default=False)
     phone_number = Column(String, nullable=True)
     address = Column(String, nullable=True)
@@ -27,14 +26,13 @@ class User(Base):
 class Hospital(Base):
     __tablename__ = "hospitals"
     id = Column(Integer, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id")) # Link to Organization User
+    owner_id = Column(Integer, ForeignKey("users.id"))
     name = Column(String, unique=True, index=True)
     address = Column(String)
     contact_number = Column(String)
     phone_number = Column(String, nullable=True)
     is_verified = Column(Boolean, default=False)
     
-    # Location request fields
     pending_address = Column(String, nullable=True)
     pending_lat = Column(Float, nullable=True)
     pending_lng = Column(Float, nullable=True)

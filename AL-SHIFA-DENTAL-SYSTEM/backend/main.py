@@ -59,7 +59,7 @@ def create_default_admin(db: Session):
             full_name="System Admin", 
             role="admin", 
             is_email_verified=True, 
-            password_hash=pwd_hash,
+            password_hash=pwd_hash, # FIXED
             phone_number="000-000-0000",
             address="Admin HQ"
         ))
@@ -68,7 +68,7 @@ def create_default_admin(db: Session):
     else:
         user.password_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         db.commit()
-        print(f"✅ [Startup] Admin password synced from config for: {admin_email}")
+        print(f"✅ [Startup] Admin password synced.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -80,8 +80,7 @@ async def lifespan(app: FastAPI):
         db.close()
     yield
 
-# --- APP INITIALIZATION (MOVED TO TOP) ---
-# This fixes the NameError because 'app' is now defined before we use @app decorators
+# --- APP INITIALIZATION (Moved to Top) ---
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -372,8 +371,33 @@ def complete_appointment(id: int, user: models.User = Depends(get_current_user),
     appt.status = "completed"; db.commit()
     return {"message": "Completed", "status": "completed"}
 
-# --- CSV ROUTES (NOW WORKING BECAUSE app IS DEFINED) ---
-@app.post("/api/inventory/upload")
+@doctor_router.post("/treatments/upload")
+@app.post("/api/treatments/upload") # Dual route for flexibility
+async def upload_treatments(file: UploadFile = File(...), user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if user.role != "doctor": raise HTTPException(403)
+    doctor = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+    try:
+        content = await file.read()
+        decoded = content.decode("utf-8-sig").splitlines()
+        csvReader = csv.DictReader(decoded)
+        count = 0
+        for row in csvReader:
+            data = {k.lower().strip(): v.strip() for k, v in row.items() if k}
+            name = data.get("treatment name") or data.get("name")
+            cost_str = data.get("cost") or data.get("price")
+            desc = data.get("description") or ""
+            if not name or not cost_str: continue
+            try: cost = float(cost_str)
+            except: continue
+            existing = db.query(models.Treatment).filter(models.Treatment.hospital_id == doctor.hospital_id, models.Treatment.name == name).first()
+            if existing: existing.cost = cost
+            else: db.add(models.Treatment(hospital_id=doctor.hospital_id, doctor_id=doctor.id, name=name, cost=cost, description=desc))
+            count += 1
+        db.commit(); return {"message": f"Uploaded {count} treatments"}
+    except Exception as e: db.rollback(); raise HTTPException(400, f"Error: {str(e)}")
+
+@doctor_router.post("/inventory/upload")
+@app.post("/api/inventory/upload") # Dual route
 async def upload_inventory(file: UploadFile = File(...), user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "doctor": raise HTTPException(403)
     doctor = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
@@ -396,30 +420,6 @@ async def upload_inventory(file: UploadFile = File(...), user: models.User = Dep
             else: db.add(models.InventoryItem(hospital_id=doctor.hospital_id, name=name, quantity=qty, unit=unit, threshold=thresh))
             count += 1
         db.commit(); return {"message": f"Uploaded {count} items"}
-    except Exception as e: db.rollback(); raise HTTPException(400, f"Error: {str(e)}")
-
-@app.post("/api/treatments/upload") 
-async def upload_treatments(file: UploadFile = File(...), user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if user.role != "doctor": raise HTTPException(403)
-    doctor = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
-    try:
-        content = await file.read()
-        decoded = content.decode("utf-8-sig").splitlines()
-        csvReader = csv.DictReader(decoded)
-        count = 0
-        for row in csvReader:
-            data = {k.lower().strip(): v.strip() for k, v in row.items() if k}
-            name = data.get("treatment name") or data.get("name")
-            cost_str = data.get("cost") or data.get("price")
-            desc = data.get("description") or ""
-            if not name or not cost_str: continue
-            try: cost = float(cost_str)
-            except: continue
-            existing = db.query(models.Treatment).filter(models.Treatment.hospital_id == doctor.hospital_id, models.Treatment.name == name).first()
-            if existing: existing.cost = cost
-            else: db.add(models.Treatment(hospital_id=doctor.hospital_id, doctor_id=doctor.id, name=name, cost=cost, description=desc))
-            count += 1
-        db.commit(); return {"message": f"Uploaded {count} treatments"}
     except Exception as e: db.rollback(); raise HTTPException(400, f"Error: {str(e)}")
 
 @doctor_router.get("/treatments")
@@ -793,6 +793,8 @@ def request_location_change(data: schemas.LocationUpdate, user: models.User = De
     db.commit()
     return {"message": "Location change requested. Waiting for Admin approval."}
 
+app = FastAPI(lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 app.include_router(auth_router); app.include_router(admin_router); app.include_router(org_router); app.include_router(doctor_router); app.include_router(public_router)
 app.include_router(agent_routes.router)
 os.makedirs("media", exist_ok=True); app.mount("/media", StaticFiles(directory="media"), name="media")
