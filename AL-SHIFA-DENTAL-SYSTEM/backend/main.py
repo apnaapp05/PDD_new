@@ -1,24 +1,23 @@
 import csv
-# backend/main.py
-
-from fastapi import FastAPI, Depends, HTTPException, status, Request, APIRouter, BackgroundTasks, Query, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
-from sqlalchemy import or_, func, and_
-from datetime import datetime, timedelta
-from jose import jwt, JWTError
-import bcrypt
-import random
-import string
-import csv
 import codecs
 import logging
 import os
 import shutil
 import json
+import random
+import string
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
+
+from fastapi import FastAPI, Depends, HTTPException, status, APIRouter, BackgroundTasks, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from jose import jwt, JWTError
+import bcrypt
 
 import models
 import database
@@ -80,6 +79,11 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
     yield
+
+# --- APP INITIALIZATION (MOVED TO TOP) ---
+# This fixes the NameError because 'app' is now defined before we use @app decorators
+app = FastAPI(lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 # --- UTILS ---
 def get_db():
@@ -153,22 +157,14 @@ def get_doctor_treatments_public(doctor_id: int, db: Session = Depends(get_db)):
     treatments = db.query(models.Treatment).filter(models.Treatment.hospital_id == doctor.hospital_id).all()
     return [{"name": t.name, "cost": t.cost, "description": t.description} for t in treatments]
 
-# --- NEW: Public Settings for Dynamic Booking ---
 @public_router.get("/doctors/{doctor_id}/settings")
 def get_public_doctor_settings(doctor_id: int, db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.id == doctor_id).first()
     if not doc: raise HTTPException(404, "Doctor not found")
-    
-    # Default settings
     default_settings = {"work_start_time": "09:00", "work_end_time": "17:00", "slot_duration": 30}
-    
-    if not doc.scheduling_config:
-        return default_settings
-        
-    try:
-        return json.loads(doc.scheduling_config)
-    except:
-        return default_settings
+    if not doc.scheduling_config: return default_settings
+    try: return json.loads(doc.scheduling_config)
+    except: return default_settings
 
 @public_router.post("/appointments")
 def create_appointment(appt: schemas.AppointmentCreate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -176,8 +172,7 @@ def create_appointment(appt: schemas.AppointmentCreate, user: models.User = Depe
     patient = db.query(models.Patient).filter(models.Patient.user_id == user.id).first()
     if not patient: raise HTTPException(400, "Patient profile not found")
     
-    try:
-        start_dt = datetime.strptime(f"{appt.date} {appt.time}", "%Y-%m-%d %I:%M %p")
+    try: start_dt = datetime.strptime(f"{appt.date} {appt.time}", "%Y-%m-%d %I:%M %p")
     except:
         try: start_dt = datetime.strptime(f"{appt.date} {appt.time}", "%Y-%m-%d %H:%M")
         except: raise HTTPException(400, "Invalid date/time format")
@@ -185,10 +180,9 @@ def create_appointment(appt: schemas.AppointmentCreate, user: models.User = Depe
     if start_dt < datetime.now(): raise HTTPException(400, "Cannot book past time")
     end_dt = start_dt + timedelta(minutes=30)
 
-    # Allow booking if previous slot was cancelled
     existing = db.query(models.Appointment).filter(
         models.Appointment.doctor_id == appt.doctor_id,
-        models.Appointment.status.in_(["confirmed", "blocked", "in_progress"]), # Ignore 'cancelled'
+        models.Appointment.status.in_(["confirmed", "blocked", "in_progress"]),
         models.Appointment.start_time < end_dt,
         models.Appointment.end_time > start_dt
     ).first()
@@ -216,7 +210,6 @@ def create_appointment(appt: schemas.AppointmentCreate, user: models.User = Depe
 
 @public_router.get("/patient/appointments")
 def get_my_appointments(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    # PATIENTS SHOULD SEE ALL HISTORY (INCLUDING CANCELLED)
     p = db.query(models.Patient).filter(models.Patient.user_id == user.id).first()
     if not p: return []
     appts = db.query(models.Appointment).filter(models.Appointment.patient_id == p.id).order_by(models.Appointment.start_time.desc()).all()
@@ -236,12 +229,9 @@ def cancel_patient_appointment(appt_id: int, user: models.User = Depends(get_cur
     if not p: raise HTTPException(404, "Patient not found")
     appt = db.query(models.Appointment).filter(models.Appointment.id == appt_id, models.Appointment.patient_id == p.id).first()
     if not appt: raise HTTPException(404, "Appointment not found")
-    
     appt.status = "cancelled"
-    # Optional: Cancel invoice too
     inv = db.query(models.Invoice).filter(models.Invoice.appointment_id == appt.id, models.Invoice.status == "pending").first()
     if inv: inv.status = "cancelled"
-    
     db.commit()
     return {"message": "Cancelled"}
 
@@ -287,22 +277,15 @@ def get_patient_profile(user: models.User = Depends(get_current_user), db: Sessi
     if user.role != "patient": raise HTTPException(403)
     p = db.query(models.Patient).filter(models.Patient.user_id == user.id).first()
     if not p: raise HTTPException(404, "Patient profile not found")
-    
     return {
-        "id": p.id,
-        "full_name": user.full_name,
-        "email": user.email,
-        "age": p.age,
-        "gender": p.gender,
-        "address": user.address or "", 
+        "id": p.id, "full_name": user.full_name, "email": user.email,
+        "age": p.age, "gender": p.gender, "address": user.address or "", 
         "blood_group": getattr(p, "blood_group", "")
     }
 
 @public_router.put("/patient/profile")
 def update_patient_profile(data: schemas.PatientProfileUpdate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if user.role != "patient": 
-        raise HTTPException(403, "Access denied")
-    
+    if user.role != "patient": raise HTTPException(403, "Access denied")
     if data.full_name: user.full_name = data.full_name
     if data.address is not None: user.address = data.address
     p = db.query(models.Patient).filter(models.Patient.user_id == user.id).first()
@@ -335,7 +318,7 @@ def get_doctor_dashboard(user: models.User = Depends(get_current_user), db: Sess
         models.Appointment.doctor_id == doc.id,
         models.Appointment.start_time >= now.replace(hour=0, minute=0, second=0),
         models.Appointment.start_time < now.replace(hour=0, minute=0, second=0) + timedelta(days=1),
-        models.Appointment.status != "cancelled" # DOCTORS ONLY SEE ACTIVE
+        models.Appointment.status != "cancelled"
     ).order_by(models.Appointment.start_time).all()
     
     revenue = db.query(func.sum(models.Invoice.amount)).join(models.Appointment).filter(models.Appointment.doctor_id == doc.id, models.Invoice.status == "paid").scalar() or 0
@@ -389,42 +372,52 @@ def complete_appointment(id: int, user: models.User = Depends(get_current_user),
     appt.status = "completed"; db.commit()
     return {"message": "Completed", "status": "completed"}
 
-@doctor_router.post("/inventory/upload")
-def upload_inventory(file: UploadFile = File(...), user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+# --- CSV ROUTES (NOW WORKING BECAUSE app IS DEFINED) ---
+@app.post("/api/inventory/upload")
+async def upload_inventory(file: UploadFile = File(...), user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "doctor": raise HTTPException(403)
     doctor = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
     try:
-        csvReader = csv.DictReader(codecs.iterdecode(file.file, "utf-8"))
+        content = await file.read()
+        decoded = content.decode("utf-8-sig").splitlines()
+        csvReader = csv.DictReader(decoded)
         count = 0
         for row in csvReader:
             data = {k.lower().strip(): v.strip() for k, v in row.items() if k}
-            name = data.get("item name") or data.get("name"); qty_str = data.get("quantity") or data.get("qty"); unit = data.get("unit") or "pcs"
+            name = data.get("item name") or data.get("name")
+            qty_str = data.get("quantity") or data.get("qty")
+            unit = data.get("unit") or "pcs"
+            thresh = data.get("min threshold") or data.get("min") or 10
             if not name or not qty_str: continue
             try: qty = int(qty_str)
             except: continue
             existing = db.query(models.InventoryItem).filter(models.InventoryItem.hospital_id == doctor.hospital_id, models.InventoryItem.name == name).first()
             if existing: existing.quantity += qty
-            else: db.add(models.InventoryItem(hospital_id=doctor.hospital_id, name=name, quantity=qty, unit=unit, threshold=10))
+            else: db.add(models.InventoryItem(hospital_id=doctor.hospital_id, name=name, quantity=qty, unit=unit, threshold=thresh))
             count += 1
         db.commit(); return {"message": f"Uploaded {count} items"}
     except Exception as e: db.rollback(); raise HTTPException(400, f"Error: {str(e)}")
 
-@doctor_router.post("/treatments/upload")
-def upload_treatments(file: UploadFile = File(...), user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+@app.post("/api/treatments/upload") 
+async def upload_treatments(file: UploadFile = File(...), user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "doctor": raise HTTPException(403)
     doctor = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
     try:
-        csvReader = csv.DictReader(codecs.iterdecode(file.file, "utf-8"))
+        content = await file.read()
+        decoded = content.decode("utf-8-sig").splitlines()
+        csvReader = csv.DictReader(decoded)
         count = 0
         for row in csvReader:
             data = {k.lower().strip(): v.strip() for k, v in row.items() if k}
-            name = data.get("treatment name") or data.get("name"); cost_str = data.get("cost") or data.get("price"); desc = data.get("description") or ""
+            name = data.get("treatment name") or data.get("name")
+            cost_str = data.get("cost") or data.get("price")
+            desc = data.get("description") or ""
             if not name or not cost_str: continue
             try: cost = float(cost_str)
             except: continue
             existing = db.query(models.Treatment).filter(models.Treatment.hospital_id == doctor.hospital_id, models.Treatment.name == name).first()
             if existing: existing.cost = cost
-            else: db.add(models.Treatment(hospital_id=doctor.hospital_id, name=name, cost=cost, description=desc))
+            else: db.add(models.Treatment(hospital_id=doctor.hospital_id, doctor_id=doctor.id, name=name, cost=cost, description=desc))
             count += 1
         db.commit(); return {"message": f"Uploaded {count} treatments"}
     except Exception as e: db.rollback(); raise HTTPException(400, f"Error: {str(e)}")
@@ -442,7 +435,7 @@ def get_doc_treatments(user: models.User = Depends(get_current_user), db: Sessio
 @doctor_router.post("/treatments")
 def create_treatment(data: schemas.TreatmentCreate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
-    db.add(models.Treatment(hospital_id=doc.hospital_id, name=data.name, cost=data.cost, description=data.description))
+    db.add(models.Treatment(hospital_id=doc.hospital_id, doctor_id=doc.id, name=data.name, cost=data.cost, description=data.description))
     db.commit(); return {"message": "Created"}
 
 @doctor_router.post("/treatments/{tid}/link-inventory")
@@ -466,7 +459,6 @@ def add_inv(item: schemas.InventoryItemCreate, user: models.User = Depends(get_c
 @doctor_router.get("/schedule")
 def get_sched(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
-    # DOCTORS ONLY SEE ACTIVE
     return db.query(models.Appointment).filter(
         models.Appointment.doctor_id == doc.id,
         models.Appointment.status != "cancelled" 
@@ -476,19 +468,17 @@ def get_sched(user: models.User = Depends(get_current_user), db: Session = Depen
 def get_daily_appointments(date: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "doctor": raise HTTPException(403)
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
-    
     try:
         query_date = datetime.strptime(date, "%Y-%m-%d")
         start_of_day = query_date.replace(hour=0, minute=0, second=0)
         end_of_day = query_date.replace(hour=23, minute=59, second=59)
-    except:
-        raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
+    except: raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
 
     appts = db.query(models.Appointment).filter(
         models.Appointment.doctor_id == doc.id,
         models.Appointment.start_time >= start_of_day,
         models.Appointment.start_time <= end_of_day,
-        models.Appointment.status != "cancelled" # DOCTORS ONLY SEE ACTIVE
+        models.Appointment.status != "cancelled"
     ).all()
     
     res = []
@@ -497,16 +487,12 @@ def get_daily_appointments(date: str, user: models.User = Depends(get_current_us
         if a.patient_id:
             p = db.query(models.Patient).filter(models.Patient.id == a.patient_id).first()
             p_name = p.user.full_name if p else "Unknown"
-        elif a.status == "blocked":
-            p_name = a.notes or "Blocked"
+        elif a.status == "blocked": p_name = a.notes or "Blocked"
 
         res.append({
-            "id": a.id,
-            "patient_name": p_name,
-            "start": a.start_time.isoformat(),
-            "end": a.end_time.isoformat(),
-            "status": a.status,
-            "treatment": a.treatment_type
+            "id": a.id, "patient_name": p_name,
+            "start": a.start_time.isoformat(), "end": a.end_time.isoformat(),
+            "status": a.status, "treatment": a.treatment_type
         })
     return {"appointments": res}
 
@@ -517,33 +503,23 @@ def block_slot(data: schemas.BlockSlotCreate, user: models.User = Depends(get_cu
     
     start_dt = datetime.strptime(f"{data.date} {data.time or '00:00'}", "%Y-%m-%d %H:%M")
     end_dt = start_dt + timedelta(minutes=30) 
-    
-    if data.is_whole_day:
-        end_dt = start_dt + timedelta(days=1)
+    if data.is_whole_day: end_dt = start_dt + timedelta(days=1)
         
     db.add(models.Appointment(doctor_id=doc.id, patient_id=None, start_time=start_dt, end_time=end_dt, status="blocked", notes=data.reason))
-    db.commit()
-    return {"message": "Blocked"}
+    db.commit(); return {"message": "Blocked"}
 
 @doctor_router.get("/schedule/settings")
 def get_schedule_settings(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "doctor": raise HTTPException(403)
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
-    if not doc: raise HTTPException(404, "Doctor profile not found")
-    
-    if not doc.scheduling_config:
-         return {"work_start_time": "09:00", "work_end_time": "17:00", "slot_duration": 30, "break_duration": 0}
-    try:
-        return json.loads(doc.scheduling_config)
-    except:
-         return {"work_start_time": "09:00", "work_end_time": "17:00", "slot_duration": 30, "break_duration": 0}
+    if not doc.scheduling_config: return {"work_start_time": "09:00", "work_end_time": "17:00", "slot_duration": 30}
+    try: return json.loads(doc.scheduling_config)
+    except: return {"work_start_time": "09:00", "work_end_time": "17:00", "slot_duration": 30}
 
 @doctor_router.put("/schedule/settings")
 def update_schedule_settings(settings: dict, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "doctor": raise HTTPException(403)
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
-    if not doc: raise HTTPException(404, "Doctor profile not found")
-    
     doc.scheduling_config = json.dumps(settings)
     db.commit()
     return {"message": "Settings updated"}
@@ -575,22 +551,17 @@ def get_doc_patients(user: models.User = Depends(get_current_user), db: Session 
 @doctor_router.post("/patients")
 def create_patient_by_doctor(data: schemas.PatientCreateByDoctor, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "doctor": raise HTTPException(403)
-    if db.query(models.User).filter(models.User.email == data.email).first():
-        raise HTTPException(400, "Email already registered")
+    if db.query(models.User).filter(models.User.email == data.email).first(): raise HTTPException(400, "Email already registered")
     
     pwd = get_password_hash("123456") 
     new_user = models.User(email=data.email, password_hash=pwd, full_name=data.full_name, role="patient", is_email_verified=True)
-    db.add(new_user)
-    db.flush()
-    
+    db.add(new_user); db.flush()
     new_patient = models.Patient(user_id=new_user.id, age=data.age, gender=data.gender)
-    db.add(new_patient)
-    db.commit()
+    db.add(new_patient); db.commit()
     
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
     db.add(models.MedicalRecord(patient_id=new_patient.id, doctor_id=doc.id, diagnosis="New Patient Registration", prescription="", notes="Registered by Doctor"))
     db.commit()
-
     return {"message": "Patient created", "id": new_patient.id}
 
 @doctor_router.get("/patients/{id}")
@@ -643,7 +614,6 @@ def register(user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Se
         raise HTTPException(400, "Email already registered")
     
     existing_unverified = db.query(models.User).filter(models.User.email == email_clean, models.User.is_email_verified == False).first()
-    
     otp = generate_otp()
     expires_at = datetime.utcnow() + timedelta(minutes=10)
 
@@ -652,10 +622,8 @@ def register(user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Se
             try:
                 txt_msg, html_msg = get_otp_email_template(name, otp_code)
                 email_service.send(to_email=email, subject="Verify your Account - Al-Shifa Dental", body=txt_msg, html_body=html_msg)
-            except Exception as e: 
-                logger.error(f"Failed to send email to {email}: {e}")
-        else:
-            logger.info(f"EMAIL SERVICE NOT CONFIGURED. OTP for {email}: {otp_code}")
+            except Exception as e: logger.error(f"Failed to send email to {email}: {e}")
+        else: logger.info(f"EMAIL SERVICE NOT CONFIGURED. OTP for {email}: {otp_code}")
 
     try:
         if existing_unverified:
@@ -679,9 +647,7 @@ def register(user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Se
         
         background_tasks.add_task(send_email_safe, email_clean, user.full_name, otp)
         return {"message": "OTP sent", "email": email_clean}
-    except Exception as e: 
-        db.rollback()
-        raise HTTPException(500, f"Error: {str(e)}")
+    except Exception as e: db.rollback(); raise HTTPException(500, f"Error: {str(e)}")
 
 @auth_router.post("/verify-otp")
 def verify_otp(data: schemas.VerifyOTP, db: Session = Depends(get_db)):
@@ -827,182 +793,6 @@ def request_location_change(data: schemas.LocationUpdate, user: models.User = De
     db.commit()
     return {"message": "Location change requested. Waiting for Admin approval."}
 
-app = FastAPI(lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 app.include_router(auth_router); app.include_router(admin_router); app.include_router(org_router); app.include_router(doctor_router); app.include_router(public_router)
 app.include_router(agent_routes.router)
 os.makedirs("media", exist_ok=True); app.mount("/media", StaticFiles(directory="media"), name="media")
-
-
-@app.post("/api/inventory/upload")
-async def upload_inventory(
-    file: UploadFile = File(...), 
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    # 1. Validate File Type
-    if not file.filename.endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Invalid file type. Please upload a CSV.")
-
-    # 2. Decode Content
-    content = await file.read()
-    decoded = content.decode("utf-8").splitlines()
-    reader = csv.DictReader(decoded)
-
-    # 3. Validate Headers (Flexible Check)
-    # Allow "Item Name" OR "name", "Min Threshold" OR "min", etc.
-    headers = [h.lower().strip() for h in reader.fieldnames]
-    required = ["item name", "quantity", "unit", "min threshold"]
-    
-    # Check if all required keys exist in some form
-    if not all(any(r in h for h in headers) for r in required):
-        return JSONResponse(
-            status_code=400, 
-            content={"detail": "CSV Headers must be: 'Item Name', 'Quantity', 'Unit', 'Min Threshold'"}
-        )
-
-    # 4. Process Rows
-    count = 0
-    # Get Hospital ID
-    doc = db.query(models.Doctor).filter(models.Doctor.user_id == current_user.id).first()
-    hid = doc.hospital_id if doc and hasattr(doc, "hospital_id") else 1
-
-    try:
-        for row in reader:
-            # clean keys
-            row = {k.lower().strip(): v for k, v in row.items()}
-            
-            # Map CSV columns to DB fields safely
-            name = row.get("item name") or row.get("name")
-            qty = int(row.get("quantity") or row.get("qty") or 0)
-            unit = row.get("unit")
-            threshold = int(row.get("min threshold") or row.get("min") or row.get("threshold") or 10)
-
-            if name:
-                # Check if exists, update or create
-                existing = db.query(models.InventoryItem).filter(
-                    models.InventoryItem.hospital_id == hid, 
-                    models.InventoryItem.name == name
-                ).first()
-                
-                if existing:
-                    existing.quantity = qty
-                    existing.min_threshold = threshold # Update threshold too
-                else:
-                    new_item = models.InventoryItem(
-                        hospital_id=hid,
-                        name=name,
-                        quantity=qty,
-                        unit=unit,
-                        min_threshold=threshold
-                    )
-                    db.add(new_item)
-                count += 1
-        
-        db.commit()
-        return {"message": f"Successfully processed {count} items."}
-
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Row Error: {str(e)}")
-
-
-# --- CSV UPLOAD ENDPOINTS ---
-
-@app.post("/api/inventory/upload")
-async def upload_inventory(
-    file: UploadFile = File(...), 
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    if not file.filename.endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Please upload a CSV file.")
-
-    content = await file.read()
-    # Decode specifically to handle potential BOM or encoding issues
-    decoded = content.decode("utf-8-sig").splitlines()
-    reader = csv.DictReader(decoded)
-
-    # Normalize headers to lowercase
-    headers = [h.lower().strip() for h in reader.fieldnames] if reader.fieldnames else []
-    
-    # Validation: Check for key columns
-    if not any("name" in h for h in headers) or not any("qty" in h or "quantity" in h for h in headers):
-        return JSONResponse(status_code=400, content={"detail": "CSV must have 'Item Name' and 'Quantity' columns."})
-
-    doc = db.query(models.Doctor).filter(models.Doctor.user_id == current_user.id).first()
-    hid = doc.hospital_id if doc else 1
-    count = 0
-
-    try:
-        for row in reader:
-            # Normalize row keys
-            row = {k.lower().strip(): v for k, v in row.items()}
-            
-            # Extract data mapping your specific headers
-            name = row.get("item name") or row.get("name")
-            if not name: continue
-            
-            qty = int(row.get("quantity") or row.get("qty") or 0)
-            unit = row.get("unit") or "Pcs"
-            threshold = int(row.get("min threshold") or row.get("threshold") or row.get("min") or 10)
-
-            # Update or Create
-            existing = db.query(models.InventoryItem).filter(models.InventoryItem.hospital_id == hid, models.InventoryItem.name == name).first()
-            if existing:
-                existing.quantity = qty
-                existing.unit = unit
-                existing.min_threshold = threshold
-            else:
-                db.add(models.InventoryItem(hospital_id=hid, name=name, quantity=qty, unit=unit, min_threshold=threshold))
-            count += 1
-        
-        db.commit()
-        return {"message": f"✅ Processed {count} inventory items."}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
-
-@app.post("/api/treatments/upload")
-async def upload_treatments(
-    file: UploadFile = File(...), 
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    if not file.filename.endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Please upload a CSV file.")
-
-    content = await file.read()
-    decoded = content.decode("utf-8-sig").splitlines()
-    reader = csv.DictReader(decoded)
-    
-    doc = db.query(models.Doctor).filter(models.Doctor.user_id == current_user.id).first()
-    if not doc: raise HTTPException(status_code=400, detail="Doctor profile not found.")
-    
-    count = 0
-    try:
-        for row in reader:
-            row = {k.lower().strip(): v for k, v in row.items()}
-            
-            # Map your specific headers: "Treatment Name", "Cost", "Description"
-            name = row.get("treatment name") or row.get("name")
-            if not name: continue
-            
-            cost = float(row.get("cost") or row.get("price") or 0)
-            desc = row.get("description") or row.get("desc") or ""
-
-            # Update or Create
-            existing = db.query(models.Treatment).filter(models.Treatment.doctor_id == doc.id, models.Treatment.name == name).first()
-            if existing:
-                existing.cost = cost
-                existing.description = desc
-            else:
-                db.add(models.Treatment(doctor_id=doc.id, name=name, cost=cost, description=desc))
-            count += 1
-            
-        db.commit()
-        return {"message": f"✅ Processed {count} treatments."}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
-
