@@ -1,29 +1,26 @@
-# backend/reset_tables.py
-
 import sys
 import os
 
-# --- FIX: Add current directory to Python path ---
+# Add current directory to Python path so imports work
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-# -------------------------------------------------
 
 from sqlalchemy import text
-from database.db_session import engine, SessionLocal
+# FIX: Import directly from database.py, not database.db_session
+from database import engine, SessionLocal 
 from models import Base, User, Hospital, Doctor, Patient, InventoryItem, Treatment
 import models 
 import bcrypt 
 
 def get_hash(password):
-    # Safely hash using bcrypt directly
-    pwd_bytes = password.encode('utf-8')
-    return bcrypt.hashpw(pwd_bytes, bcrypt.gensalt()).decode('utf-8')
+    pwd_bytes = password.encode("utf-8")
+    return bcrypt.hashpw(pwd_bytes, bcrypt.gensalt()).decode("utf-8")
 
 def seed_test_data():
     print("🌱 Seeding Test Data...")
     db = SessionLocal()
     try:
         # --- 1. DEFAULT USERS ---
-        print("   > Creating default users (o@o.o, d@d.d, p@p.p)")
+        print("   > Creating Admin Org & Users...")
         
         # Org
         org = models.User(
@@ -141,21 +138,20 @@ def seed_test_data():
 def reset_tables():
     print("🔄 STARTING DATABASE RESET...")
     
-    # 1. DROP ALL TABLES
     try:
+        # 1. DROP ALL TABLES
         Base.metadata.drop_all(bind=engine)
-        print("✅ Old tables dropped successfully.")
-    except Exception as e:
-        print(f"❌ Error dropping tables: {e}")
-        return
+        print("✅ Old tables dropped.")
 
-    # 2. RECREATE TABLES
-    print("🏗️  Recreating tables...")
-    try:
+        # 2. RECREATE TABLES
+        print("🏗️  Recreating tables...")
         Base.metadata.create_all(bind=engine)
-        seed_test_data() 
+        
+        # 3. SEED
+        seed_test_data()
+        
     except Exception as e:
-        print(f"❌ Error creating tables: {e}")
+        print(f"❌ Error during reset: {e}")
 
 if __name__ == "__main__":
     reset_tables()
