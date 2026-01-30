@@ -38,9 +38,9 @@ export default function DoctorSchedulePage() {
   });
   const [savingSettings, setSavingSettings] = useState(false);
 
-  // Blocking State (Updated with 'date' field)
+  // Blocking State
   const [blockForm, setBlockForm] = useState({ 
-    date: formatDateForAPI(new Date()), // Default to today
+    date: formatDateForAPI(new Date()), 
     time: "", 
     reason: "Personal", 
     is_whole_day: false 
@@ -48,35 +48,40 @@ export default function DoctorSchedulePage() {
   
   const prevCountRef = useRef(0);
 
-  // --- LIVE CLOCK & POLLING ---
+  // --- LIVE CLOCK ---
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
-  // --- FETCH DATA ---
-  const fetchSchedule = async (silent = false) => {
+  // --- FETCH DATA (SEPARATED) ---
+  
+  // 1. Fetch Settings (Only on mount)
+  const fetchSettings = async () => {
+    try {
+      const res = await api.get("/doctor/schedule/settings");
+      if (res.data) {
+          setConfig(prev => ({ ...prev, ...res.data }));
+      }
+    } catch (e) {
+      console.error("Settings fetch error:", e);
+    }
+  };
+
+  // 2. Fetch Appointments (On mount, date change, and interval)
+  const fetchAppointments = async (silent = false) => {
     if (!silent) setLoading(true);
-    
     try {
       const dateStr = formatDateForAPI(selectedDate);
-      
-      const [resAppt, resSettings] = await Promise.all([
-         DoctorAPI.getAppointments(dateStr), 
-         api.get("/doctor/schedule/settings")
-      ]);
-
-      const newAppts = resAppt.data.appointments || [];
+      const res = await DoctorAPI.getAppointments(dateStr);
+      const newAppts = res.data.appointments || [];
       
       if (silent && newAppts.length > prevCountRef.current) {
          setNewBookingAlert(true);
          setTimeout(() => setNewBookingAlert(false), 5000);
       }
-      
       setAppointments(newAppts);
-      setConfig(prev => ({ ...prev, ...resSettings.data }));
       prevCountRef.current = newAppts.length;
-
     } catch (e) {
       console.error("Schedule fetch error:", e);
     } finally {
@@ -85,11 +90,21 @@ export default function DoctorSchedulePage() {
     }
   };
 
-  useEffect(() => { fetchSchedule(); }, [selectedDate]);
+  // Initial Load
+  useEffect(() => {
+    fetchSettings();
+    fetchAppointments();
+  }, []);
 
+  // Date Change
+  useEffect(() => {
+    fetchAppointments();
+  }, [selectedDate]);
+
+  // Live Poll (Appointments Only - Does NOT overwrite settings)
   useEffect(() => {
     if (!isLive) return;
-    const interval = setInterval(() => fetchSchedule(true), 10000); 
+    const interval = setInterval(() => fetchAppointments(true), 10000); 
     return () => clearInterval(interval);
   }, [isLive, selectedDate]);
 
@@ -99,22 +114,32 @@ export default function DoctorSchedulePage() {
     try {
       await api.put("/doctor/schedule/settings", config);
       alert("Availability updated!");
-    } catch (e) { alert("Failed to update settings."); } 
-    finally { setSavingSettings(false); }
+      // Optionally re-fetch to confirm, but local state is already correct
+    } catch (e) { 
+      alert("Failed to update settings."); 
+    } finally { 
+      setSavingSettings(false); 
+    }
   };
 
   const handleBlockSlot = async () => {
     try {
         await DoctorAPI.blockSlot({
-            date: blockForm.date, // Use the selected date from the form
+            date: blockForm.date,
             time: blockForm.time,
             reason: blockForm.reason,
             is_whole_day: blockForm.is_whole_day
         });
         alert("Slot blocked successfully");
         setBlockForm({ ...blockForm, time: "", reason: "Personal", is_whole_day: false });
-        fetchSchedule(); // Refresh grid
+        fetchAppointments(); // Refresh grid
     } catch(e) { alert("Failed to block slot. Check for overlaps."); }
+  };
+
+  const handleRefresh = () => {
+      setRefreshing(true);
+      fetchAppointments();
+      fetchSettings(); // Explicit refresh updates everything
   };
 
   const handlePrev = () => setSelectedDate(prev => addDays(prev, -1));
@@ -217,7 +242,7 @@ export default function DoctorSchedulePage() {
                 </span>
             </div>
 
-            <Button size="icon" variant="outline" className="rounded-full h-10 w-10 border-slate-200 hover:bg-slate-50" onClick={() => fetchSchedule()}>
+            <Button size="icon" variant="outline" className="rounded-full h-10 w-10 border-slate-200 hover:bg-slate-50" onClick={handleRefresh}>
                <RefreshCcw className={`h-4 w-4 text-slate-600 ${refreshing ? 'animate-spin' : ''}`} />
             </Button>
         </div>
@@ -297,14 +322,13 @@ export default function DoctorSchedulePage() {
            </Card>
         </TabsContent>
 
-        {/* --- BLOCK TIME TAB (Updated with Date Picker) --- */}
+        {/* --- BLOCK TIME TAB --- */}
         <TabsContent value="block">
             <Card className="max-w-md mx-auto mt-8 border-red-100 shadow-sm">
                 <CardHeader className="bg-red-50/50 pb-4 border-b border-red-100">
                     <CardTitle className="text-red-900 flex items-center gap-2"><Ban className="h-5 w-5"/> Block Time Slot</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6 pt-6">
-                    {/* Date Picker for Blocking */}
                     <div className="space-y-2">
                         <label className="text-xs font-bold uppercase text-slate-500">Date to Block</label>
                         <div className="relative">
