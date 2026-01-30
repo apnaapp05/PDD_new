@@ -177,6 +177,17 @@ def create_appointment(appt: schemas.AppointmentCreate, user: models.User = Depe
         except: raise HTTPException(400, "Invalid date/time format")
     
     if start_dt < datetime.now(): raise HTTPException(400, "Cannot book past time")
+    
+    # --- STRICT RULE: ONE ACTIVE APPOINTMENT PER PATIENT ---
+    active_appt = db.query(models.Appointment).filter(
+        models.Appointment.patient_id == patient.id,
+        models.Appointment.status.in_(["confirmed", "pending", "checked-in", "in_progress"])
+    ).first()
+    
+    if active_appt:
+        raise HTTPException(400, f"You already have an active appointment on {active_appt.start_time.strftime('%Y-%m-%d')}. Please cancel or reschedule it first.")
+    # -------------------------------------------------------
+
     end_dt = start_dt + timedelta(minutes=30)
 
     existing = db.query(models.Appointment).filter(
@@ -936,5 +947,6 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 app.include_router(auth_router); app.include_router(admin_router); app.include_router(org_router); app.include_router(doctor_router); app.include_router(public_router)
 app.include_router(agent_routes.router)
 os.makedirs("media", exist_ok=True); app.mount("/media", StaticFiles(directory="media"), name="media")
+
 
 
