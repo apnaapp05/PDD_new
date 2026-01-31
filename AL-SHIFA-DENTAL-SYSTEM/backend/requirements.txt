@@ -11,3 +11,10 @@ email-validator
 requests
 chromadb
 python-dotenv
+
+# --- NEW AI AGENT LIBRARIES ---
+spacy
+rapidfuzz
+pandas
+apscheduler
+scikit-learn

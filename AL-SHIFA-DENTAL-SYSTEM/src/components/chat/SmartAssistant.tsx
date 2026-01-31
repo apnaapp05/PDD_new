@@ -1,211 +1,188 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Send, Sparkles, Loader2, Bot, User, X, Calendar as CalendarIcon, RefreshCw, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
-import { api } from "@/lib/api";
+import React, { useState, useEffect, useRef } from 'react';
+import { Send, Bot, User, Sparkles, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Card } from '@/components/ui/card';
+import { useRouter } from 'next/navigation';
 
 interface Message {
   id: string;
-  role: "user" | "assistant";
+  role: 'user' | 'assistant';
   content: string;
-  timestamp: string;
-  options?: string[];
+  timestamp: Date;
 }
 
-interface SmartAssistantProps {
-  agentType: string;
-  placeholder?: string;
-  onClose?: () => void;
-}
-
-// DEFINING UNIQUE MENUS FOR EACH AGENT
-const AGENT_MENUS: Record<string, string[]> = {
-  appointment: [
-    "Show Today's Schedule", 
-    "Book Appointment", 
-    "Reschedule Appointment", 
-    "Cancel Appointment"
-  ],
-  revenue: [
-    "Create New Invoice", 
-    "Show Unpaid Bills", 
-    "Daily Report", 
-    "Weekly Report"
-  ],
-  inventory: [
-    "Check Low Stock", 
-    "Add New Item", 
-    "Usage Report"
-  ],
-  casetracking: [
-    "Search Patient Record", 
-    "Add Clinical Note", 
-    "View Prescriptions"
-  ]
-};
-
-export default function SmartAssistant({ agentType, placeholder, onClose }: SmartAssistantProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
+export default function SmartAssistant() {
+  const router = useRouter();
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: '1',
+      role: 'assistant',
+      content: 'Hello! I am your Dental AI Agent. Ask me about Revenue, Inventory, or Schedules.',
+      timestamp: new Date()
+    }
+  ]);
+  const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const scrollEndRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 1. INITIALIZE WITH CORRECT MENU
   useEffect(() => {
-    const saved = localStorage.getItem(`chat_history_${agentType}`);
-    if (saved) {
-      try {
-        setMessages(JSON.parse(saved));
-      } catch (e) {
-        initChat();
-      }
-    } else {
-      initChat();
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [agentType]);
+  }, [messages]);
 
-  useEffect(() => {
-    if (messages.length > 0) {
-      localStorage.setItem(`chat_history_${agentType}`, JSON.stringify(messages));
+  // --- ACTION HANDLER ---
+  const performAction = (action: string | null, intent: string | null) => {
+    if (!action && !intent) return;
+
+    console.log("Agent Action:", action, "Intent:", intent);
+
+    // 1. Handle Navigation/Redirects from Backend
+    if (action && action.startsWith('redirect:')) {
+      const page = action.split(':')[1];
+      if (page === 'appointment_new') router.push('/doctor/schedule'); // Redirect to schedule
+      if (page === 'patient_new') router.push('/doctor/patients');
     }
-  }, [messages, agentType]);
 
-  useEffect(() => {
-    scrollEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading]);
+    // 2. Handle Modals (Simulated via Redirects for now)
+    if (action && action.startsWith('opening_modal:')) {
+      const modalType = action.split(':')[1];
+      if (modalType === 'inventory_add') router.push('/doctor/inventory');
+      if (modalType === 'schedule_block') router.push('/doctor/schedule');
+      // Fixed the syntax error below:
+      alert(`Agent requested to open '${modalType}' modal. Navigating to page instead.`);
+    }
 
-  const initChat = () => {
-    // Select the correct menu based on agentType (fallback to Appointment if unknown)
-    const startOptions = AGENT_MENUS[agentType] || AGENT_MENUS["appointment"];
-    
-    setMessages([{
-      id: "1",
-      role: "assistant",
-      content: `Hello! I am your ${agentType.replace("_", " ")} Assistant.`,
-      timestamp: new Date().toISOString(),
-      options: startOptions
-    }]);
+    // 3. Handle Direct Intents (Legacy support)
+    if (intent === 'NAV_DASHBOARD') router.push('/doctor/dashboard');
+    if (intent === 'NAV_SETTINGS' || intent === 'NAV_PROFILE') router.push('/doctor/profile');
+    if (intent === 'NAV_LOGOUT') {
+        localStorage.removeItem('token');
+        router.push('/auth/doctor/login');
+    }
   };
 
-  const clearHistory = () => {
-    localStorage.removeItem(`chat_history_${agentType}`);
-    initChat();
-  };
+  const handleSend = async () => {
+    if (!input.trim()) return;
 
-  const handleSend = async (text: string) => {
-    if (!text.trim()) return;
-
-    const userMsg: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: text.startsWith("CALENDAR_DATE:") ? `Selected Date: ${text.split(":")[1].split("|")[0]}` : text,
-      timestamp: new Date().toISOString()
-    };
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: input, timestamp: new Date() };
     setMessages(prev => [...prev, userMsg]);
-    setInput("");
+    setInput('');
     setIsLoading(true);
 
     try {
-      const res = await api.post("/agent/router", {
-        user_query: text,
-        role: agentType,
-        history: []
+      const res = await fetch('http://localhost:8000/api/agent/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMsg.content }),
       });
 
-      const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: res.data.response,
-        timestamp: new Date().toISOString(),
-        options: res.data.options || []
+      const data = await res.json();
+
+      const botMsg: Message = { 
+        id: (Date.now() + 1).toString(), 
+        role: 'assistant', 
+        content: data.response || "I didn't understand that.", 
+        timestamp: new Date() 
       };
-      setMessages(prev => [...prev, aiMsg]);
+      setMessages(prev => [...prev, botMsg]);
+
+      // EXECUTE ACTION
+      performAction(data.action, data.intent);
 
     } catch (error) {
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        role: "assistant",
-        content: "Error communicating with agent.",
-        timestamp: new Date().toISOString(),
-        options: ["Main Menu"]
+      console.error(error);
+      setMessages(prev => [...prev, { 
+        id: Date.now().toString(), 
+        role: 'assistant', 
+        content: "Sorry, I lost connection to the server.", 
+        timestamp: new Date() 
       }]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const isCalendarOption = (opt: string) => opt.startsWith("__UI_CALENDAR__");
-
   return (
-    <div className="flex flex-col h-[600px] w-full max-w-md bg-white rounded-xl shadow-2xl border border-indigo-100 overflow-hidden font-sans">
-      <div className="p-4 bg-indigo-600 flex justify-between items-center text-white shadow-md z-10">
+    <Card className="flex flex-col h-full w-full border-none shadow-none bg-white">
+      <div className="p-4 border-b flex justify-between items-center bg-teal-50">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-white" />
-          <span className="font-bold text-sm capitalize">{agentType.replace("_", " ")} Agent</span>
-        </div>
-        <div className="flex gap-2">
-            <button onClick={clearHistory} className="p-1 hover:bg-white/20 rounded-full transition-colors" title="Clear History">
-                <Trash2 className="w-4 h-4" />
-            </button>
-            {onClose && <button onClick={onClose}><X className="w-5 h-5" /></button>}
+          <div className="bg-teal-100 p-2 rounded-full">
+             <Bot className="w-5 h-5 text-teal-700" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-800">Dental Assistant</h3>
+            <p className="text-xs text-teal-600 flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              Online
+            </p>
+          </div>
         </div>
       </div>
 
-      <ScrollArea className="flex-1 p-4 bg-slate-50/50">
-        <div className="space-y-6 pb-2">
+      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+        <div className="space-y-4">
           {messages.map((msg) => (
-            <div key={msg.id} className={cn("flex w-full animate-in fade-in slide-in-from-bottom-2 duration-300", msg.role === "user" ? "justify-end" : "justify-start")}>
-              {msg.role === "assistant" && (
-                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center mr-2 border border-indigo-200 shrink-0"><Bot className="w-4 h-4 text-indigo-600" /></div>
-              )}
-              <div className={cn("flex flex-col max-w-[90%] gap-2", msg.role === "user" ? "items-end" : "items-start")}>
-                <div className={cn("p-3.5 rounded-2xl text-sm shadow-sm leading-relaxed", msg.role === "user" ? "bg-indigo-600 text-white rounded-br-none" : "bg-white text-slate-700 border border-slate-100 rounded-bl-none")}>
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
+            <div
+              key={msg.id}
+              className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              {msg.role === 'assistant' && (
+                <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center shrink-0">
+                  <Bot className="w-4 h-4 text-teal-700" />
                 </div>
-                {msg.role === "assistant" && msg.options && msg.options.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {msg.options.map((opt, idx) => {
-                      if (isCalendarOption(opt)) {
-                        const context = opt.split("|")[1];
-                        return (
-                          <div key={idx} className="w-full bg-white p-3 rounded-xl border border-indigo-100 shadow-sm">
-                            <div className="flex items-center gap-2 mb-2 text-indigo-700 text-xs font-bold"><CalendarIcon className="w-4 h-4" /> Select Date</div>
-                            <input 
-                              type="date" 
-                              className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                              min={new Date().toISOString().split("T")[0]}
-                              onChange={(e) => { if(e.target.value) handleSend(`CALENDAR_DATE: ${e.target.value} | ${context}`); }}
-                            />
-                          </div>
-                        );
-                      }
-                      return (
-                        <button key={idx} onClick={() => handleSend(opt)} className="px-3 py-2 text-xs font-semibold bg-white text-indigo-700 rounded-lg border border-indigo-200 hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-95 text-left">
-                          {opt}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                <span className="text-[10px] text-slate-400 px-1">
-                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </span>
+              )}
+              
+              <div
+                className={`max-w-[80%] rounded-2xl p-3 text-sm ${
+                  msg.role === 'user'
+                    ? 'bg-teal-600 text-white rounded-tr-none'
+                    : 'bg-gray-100 text-gray-800 rounded-tl-none'
+                }`}
+              >
+                {msg.content}
               </div>
             </div>
           ))}
-          {isLoading && <div className="flex justify-start items-center gap-2 pl-10"><Loader2 className="w-4 h-4 animate-spin text-indigo-600" /><span className="text-xs text-slate-500">Processing...</span></div>}
-          <div ref={scrollEndRef} />
+          {isLoading && (
+            <div className="flex gap-2">
+               <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center">
+                  <Bot className="w-4 h-4 text-teal-700" />
+               </div>
+               <div className="bg-gray-100 rounded-2xl p-3 rounded-tl-none flex items-center gap-1">
+                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+               </div>
+            </div>
+          )}
         </div>
       </ScrollArea>
 
-      <div className="p-4 bg-white border-t border-slate-100">
-        <form onSubmit={(e) => { e.preventDefault(); handleSend(input); }} className="flex gap-2">
-          <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder={placeholder || "Type here..."} className="flex-1 bg-slate-50 border-slate-200 focus-visible:ring-indigo-500 rounded-xl" disabled={isLoading} />
-          <Button type="submit" size="icon" className="rounded-xl bg-indigo-600 hover:bg-indigo-700" disabled={!input.trim() || isLoading}><Send className="w-4 h-4" /></Button>
+      <div className="p-4 border-t bg-white">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSend();
+          }}
+          className="flex gap-2"
+        >
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Type your request..."
+            className="flex-1 focus-visible:ring-teal-500"
+          />
+          <Button 
+            type="submit" 
+            size="icon"
+            disabled={isLoading || !input.trim()}
+            className="bg-teal-600 hover:bg-teal-700 text-white transition-all duration-200"
+          >
+            {isLoading ? <Sparkles className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </Button>
         </form>
       </div>
-    </div>
+    </Card>
   );
 }

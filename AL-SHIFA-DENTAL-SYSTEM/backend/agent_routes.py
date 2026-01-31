@@ -1,457 +1,281 @@
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, or_
-from datetime import datetime, timedelta
-import logging
+import random
 import re
-import json
-from dependencies import get_current_user, get_db
+import logging
+import numpy as np
+import pandas as pd
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from datetime import datetime, timedelta, time
+import database
 import models
+import brain_data
 
-# --- NOTIFICATION SERVICE ---
-# We wrap this in try-except to prevent crashes if config is missing
+# --- AGENTIC LIBRARIES ---
 try:
-    from notifications.service import NotificationService
-    notifier = NotificationService()
-except:
-    notifier = None
+    from rapidfuzz import process, fuzz
+    from sklearn.feature_extraction.text import CountVectorizer
+    from sklearn.naive_bayes import MultinomialNB
+    from sklearn.pipeline import make_pipeline
+    HAS_ML = True
+except ImportError:
+    HAS_ML = False
 
-router = APIRouter(prefix="/agent", tags=["AI Agents"])
+# LOGGING
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("AgentBrain")
 
-class AgentRequest(BaseModel):
-    user_query: str
-    role: str
-    history: list[dict] = []
+router = APIRouter(prefix="/api/agent", tags=["AI Agent"])
 
-# =============================================================================
-# SHARED HELPERS
-# =============================================================================
+# ==========================================
+# 0. MEMORY (CONTEXT STORAGE)
+# ==========================================
+# Stores the last intent per user session (Simplified Global for Demo)
+# In production, use a dictionary keyed by user_id
+CHAT_CONTEXT = {
+    "last_intent": None,
+    "last_data": None
+}
 
-def send_appointment_notification(db: Session, appt_id: int, action: str):
-    """Sends SMS/Email to patient safely."""
-    if not notifier: return
-    try:
-        appt = db.query(models.Appointment).filter(models.Appointment.id == appt_id).first()
-        if not appt or not appt.patient or not appt.patient.user: return
+# ==========================================
+# 1. ML BRAIN INITIALIZATION
+# ==========================================
+model = None
 
-        patient_name = appt.patient.user.full_name
-        email = appt.patient.user.email
-        date_str = appt.start_time.strftime("%A, %d %B at %I:%M %p")
-        
-        subject = f"Appointment {action.title()} - Al-Shifa Dental"
-        msg = f"Dear {patient_name},\n\nYour appointment for {appt.treatment_type} has been {action}.\nDate: {date_str}\n\nThank you."
+if HAS_ML:
+    logger.info("🧠 Training Agentic Model...")
+    X_train = [text for text, label in brain_data.TRAINING_DATA]
+    y_train = [label for text, label in brain_data.TRAINING_DATA]
+    model = make_pipeline(CountVectorizer(), MultinomialNB())
+    model.fit(X_train, y_train)
+    logger.info("✅ Agentic Model Trained!")
 
-        if email: notifier.notify_email(email, subject, msg)
-        
-    except Exception as e:
-        logging.error(f"Notification Failed: {e}")
-
-def auto_deduct_stock(db: Session, hospital_id: int, treatment_name: str):
-    """Smartly deducts inventory based on treatment name"""
-    logs = []
-    consumables = ["Gloves", "Masks", "Dental Bibs", "Saliva Ejectors"]
-    for c_name in consumables:
-        item = db.query(models.InventoryItem).filter(
-            models.InventoryItem.hospital_id == hospital_id,
-            models.InventoryItem.name.ilike(f"%{c_name}%")
-        ).first()
-        if item and item.quantity > 0:
-            item.quantity -= 1
-            logs.append(f"-1 {item.name}")
-
-    keywords = {
-        "Root Canal": ["RCT", "Files", "Gutta", "Paper Points"],
-        "Extraction": ["Suture", "Gauze", "Forceps", "Elevator"],
-        "Implant": ["Implant", "Screw", "Drill"],
-        "Filling": ["Composite", "Etchant", "Bonding"],
-        "Whitening": ["Bleaching", "Gel"]
+# ==========================================
+# 2. INTELLIGENT HELPERS
+# ==========================================
+def sanitize_text(text):
+    """Auto-corrects common typos."""
+    corrections = {
+        "shedule": "schedule", "schedual": "schedule", "apointment": "appointment",
+        "revenue": "revenue", "invntory": "inventory", "tody": "today", 
+        "todays": "today", "today's": "today", "tomorow": "tomorrow", "canceled": "cancelled",
+        "detals": "details", "statue": "status"
     }
-    for key, search_terms in keywords.items():
-        if key.lower() in treatment_name.lower():
-            for term in search_terms:
-                target = db.query(models.InventoryItem).filter(
-                    models.InventoryItem.hospital_id == hospital_id,
-                    models.InventoryItem.name.ilike(f"%{term}%")
-                ).first()
-                if target and target.quantity > 0:
-                    target.quantity -= 1
-                    logs.append(f"-1 {target.name}")
-    db.commit()
-    return ", ".join(logs) if logs else "No stock deducted"
+    clean_text = re.sub(r"[^\w\s]", "", text) 
+    words = clean_text.split()
+    fixed_words = [corrections.get(w, w) for w in words]
+    return " ".join(fixed_words)
 
-def get_smart_slots(db: Session, doctor_id: int, date_str: str):
-    doc = db.query(models.Doctor).filter(models.Doctor.id == doctor_id).first()
-    start_time, end_time, duration = "09:00", "17:00", 30
-    if doc and doc.scheduling_config:
-        try:
-            config = json.loads(doc.scheduling_config)
-            start_time = config.get("work_start_time", "09:00")
-            end_time = config.get("work_end_time", "17:00")
-            duration = int(config.get("slot_duration", 30))
-        except: pass
+def predict_intent(text):
+    """Uses Scikit-Learn to predict intent."""
+    if not model: return "FALLBACK"
+    predicted = model.predict([text])[0]
+    probs = model.predict_proba([text])[0]
+    confidence = max(probs)
+    if confidence < 0.35: return "FALLBACK"
+    return predicted
 
-    try: selected_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-    except: return []
+def fuzzy_fix_item_name(user_input, db: Session):
+    items = db.query(models.InventoryItem).all()
+    item_names = [i.name for i in items]
+    if not item_names: return None
+    match = process.extractOne(user_input, item_names, scorer=fuzz.token_sort_ratio)
+    if match and match[1] > 60:
+        return db.query(models.InventoryItem).filter(models.InventoryItem.name == match[0]).first()
+    return None
 
-    now = datetime.now()
-    start_dt = datetime.combine(selected_date, datetime.strptime(start_time, "%H:%M").time())
-    end_dt = datetime.combine(selected_date, datetime.strptime(end_time, "%H:%M").time())
-    slots = []
-    curr = start_dt
-    while curr < end_dt:
-        slots.append(curr)
-        curr += timedelta(minutes=duration)
-
-    if selected_date == now.date():
-        slots = [s for s in slots if s > now + timedelta(minutes=15)]
-
-    booked = db.query(models.Appointment).filter(
-        models.Appointment.doctor_id == doctor_id, 
-        models.Appointment.status.in_(["confirmed", "pending", "checked-in", "in-progress"]), 
-        func.date(models.Appointment.start_time) == selected_date
-    ).all()
-    booked_times = {b.start_time for b in booked}
-    
-    return [s.strftime("%I:%M %p") for s in slots if s not in booked_times]
-
-def auto_maintain_appointments(db: Session, doctor_id: int):
-    now = datetime.now()
-    # Auto-Cancel
-    expired = db.query(models.Appointment).filter(
-        models.Appointment.doctor_id == doctor_id, 
-        models.Appointment.status.in_(["confirmed", "pending"]), 
-        models.Appointment.end_time < now
-    ).all()
-    
-    for appt in expired:
-        appt.status = "cancelled"
-        appt.notes = (appt.notes or "") + " [Auto-Cancelled]"
-        db.query(models.Invoice).filter(models.Invoice.appointment_id == appt.id, models.Invoice.status == "pending").delete(synchronize_session=False)
-
-    # Auto-Complete
-    stale_limit = now - timedelta(hours=4)
-    stale = db.query(models.Appointment).filter(models.Appointment.doctor_id == doctor_id, models.Appointment.status == "in_progress", models.Appointment.start_time < stale_limit).all()
-    for appt in stale:
-        appt.status = "completed"
-        appt.notes = (appt.notes or "") + " [Auto-Completed]"
-        try:
-            doc = db.query(models.Doctor).filter(models.Doctor.id == doctor_id).first()
-            if appt.treatment_type: auto_deduct_stock(db, doc.hospital_id, appt.treatment_type)
-        except: pass
-    if expired or stale: db.commit()
-
-# =============================================================================
-# AGENT 1: INVENTORY
-# =============================================================================
-def handle_inventory_logic(db: Session, doctor_id: int, query: str):
-    q_norm = query.lower().strip()
-    doc = db.query(models.Doctor).filter(models.Doctor.id == doctor_id).first()
-    hid = doc.hospital_id if doc else 1
-
-    if q_norm in ["menu", "hi", "hello", "start", "main menu"]:
-        return {"response": "📦 **Inventory Agent**", "options": ["Check Low Stock", "Stock Status", "Log Usage", "Add Stock"]}
-
-    if q_norm == "stock status" or q_norm == "check low stock":
-        items = db.query(models.InventoryItem).filter(models.InventoryItem.hospital_id == hid).all()
-        low = [i for i in items if i.quantity <= getattr(i, "min_threshold", 10)]
-        msg = f"📦 **Inventory Status ({len(items)} Items)**\n"
-        msg += "⚠️ **LOW STOCK:**\n" + "\n".join([f"- {i.name}: {i.quantity} {i.unit}" for i in low]) if low else "✅ All stock healthy."
-        return {"response": msg, "options": ["Log Usage", "Add Stock", "Main Menu"]}
-
-    if q_norm == "log usage":
-        items = db.query(models.InventoryItem).filter(models.InventoryItem.hospital_id == hid).order_by(models.InventoryItem.name).limit(20).all()
-        return {"response": "Select Item Used:", "options": [f"Used: {i.name} | ID:{i.id}" for i in items] + ["Main Menu"]}
-
-    if q_norm.startswith("used:"):
-        parts = q_norm.split(" | id:")
-        if len(parts) > 1:
-            iid = int(parts[1])
-            return {"response": f"Quantity?", "options": [f"Use 1 | ID:{iid}", f"Use 5 | ID:{iid}", f"Use 10 | ID:{iid}"]}
-        return {"response": "Error selection.", "options": ["Log Usage"]}
-
-    if q_norm.startswith("use "):
-        try:
-            qty = int(q_norm.split(" | ")[0].replace("use ", ""))
-            iid = int(re.search(r"id:(\d+)", q_norm).group(1))
-            item = db.query(models.InventoryItem).filter(models.InventoryItem.id == iid).first()
-            if item:
-                item.quantity = max(0, item.quantity - qty)
-                db.commit()
-                return {"response": f"✅ Logged. {item.name}: {item.quantity} remaining.", "options": ["Log Another", "Stock Status"]}
-        except: pass
-    
-    if q_norm == "add stock":
-        items = db.query(models.InventoryItem).filter(models.InventoryItem.hospital_id == hid).order_by(models.InventoryItem.quantity).limit(20).all()
-        return {"response": "Select Item:", "options": [f"Add: {i.name} | ID:{i.id}" for i in items] + ["Main Menu"]}
-
-    if q_norm.startswith("add:"):
-        iid = int(re.search(r"id:(\d+)", q_norm).group(1))
-        return {"response": "Qty to add?", "options": [f"Add +10 | ID:{iid}", f"Add +50 | ID:{iid}", f"Add +100 | ID:{iid}"]}
-
-    if q_norm.startswith("add +"):
-        qty = int(q_norm.split(" | ")[0].replace("add +", ""))
-        iid = int(re.search(r"id:(\d+)", q_norm).group(1))
-        item = db.query(models.InventoryItem).filter(models.InventoryItem.id == iid).first()
-        item.quantity += qty; db.commit()
-        return {"response": f"✅ Updated. {item.name}: {item.quantity}", "options": ["Stock Status"]}
-
-    return {"response": "Unknown command.", "options": ["Main Menu"]}
-
-# =============================================================================
-# AGENT 2: REVENUE
-# =============================================================================
-def handle_revenue_logic(db: Session, doctor_id: int, query: str):
-    q_norm = query.lower().strip()
-    now = datetime.now()
-    treatments = db.query(models.Treatment).filter(models.Treatment.doctor_id == doctor_id).all()
-    RC = {t.name: t.cost for t in treatments} or {"Consultation": 500}
-
-    if q_norm in ["menu", "hi", "hello", "start", "main menu"]: 
-        return {"response": "💰 **Revenue Agent**", "options": ["Create New Invoice", "Show Unpaid Bills", "Daily Report"]}
-    
-    if q_norm == "daily report":
-        s = now.replace(hour=0,minute=0)
-        t = db.query(func.sum(models.Invoice.amount)).filter(models.Invoice.created_at>=s).scalar() or 0
-        paid = db.query(func.sum(models.Invoice.amount)).filter(models.Invoice.created_at>=s, models.Invoice.status=="paid").scalar() or 0
-        return {"response": f"📊 **Daily Report:**\n💰 Collected: ₹{paid}\n⏳ Pending: ₹{t-paid}", "options": ["Main Menu"]}
-
-    if q_norm == "create new invoice":
-        appts = db.query(models.Appointment).filter(models.Appointment.doctor_id==doctor_id).order_by(desc(models.Appointment.start_time)).limit(10).all()
-        return {"response": "Select patient:", "options": [f"Bill: {a.patient.user.full_name} (ID:{a.patient_id})" for a in appts] + ["Main Menu"]}
-    
-    if q_norm.startswith("bill:"):
-        pid = re.search(r"\(id:(\d+)\)", q_norm).group(1)
-        return {"response": "Select Procedure:", "options": [f"Add: {n} - ₹{p} | P:{pid}" for n, p in RC.items()]}
-    
-    if q_norm.startswith("add:"):
-        p = q_norm.split(" | p:")
-        n, v = p[0].replace("add: ", "").split(" - ₹")
-        i = models.Invoice(patient_id=int(p[1]), amount=float(v), status="pending", created_at=now, details=n)
-        db.add(i); db.commit()
-        return {"response": f"✅ Invoice Created: {n} (₹{v})", "options": [f"Pay Cash | ID:{i.id}", f"Pay Online | ID:{i.id}", "Main Menu"]}
-    
-    if q_norm == "show unpaid bills":
-        u = db.query(models.Invoice).filter(models.Invoice.status=="pending").all()
-        if not u: return {"response": "✅ No unpaid bills!", "options": ["Main Menu"]}
-        return {"response": "Unpaid Bills:", "options": [f"Pay: {i.patient.user.full_name} (₹{i.amount}) | ID:{i.id}" for i in u]}
-    
-    if q_norm.startswith("pay:"): 
-        return {"response": "Select Mode:", "options": [f"Pay Cash | ID:{re.search(r'\| id:(\d+)', q_norm).group(1)}", f"Pay Online | ID:{re.search(r'\| id:(\d+)', q_norm).group(1)}"]}
-    
-    if q_norm.startswith("pay cash") or q_norm.startswith("pay online"):
-        i = db.query(models.Invoice).filter(models.Invoice.id==int(re.search(r"\| id:(\d+)", q_norm).group(1))).first()
-        if i:
-            i.status="paid"
-            i.details += " [Mode: " + ("Cash" if "cash" in q_norm else "Online") + "]"
-            db.commit()
-            return {"response": "✅ Payment Recorded.", "options": ["Daily Report"]}
-
-    return {"response": "Unknown command.", "options": ["Main Menu"]}
-
-# =============================================================================
-# AGENT 3: APPOINTMENT
-# =============================================================================
-def handle_appointment_logic(db: Session, doctor_id: int, query: str):
-    auto_maintain_appointments(db, doctor_id)
-    q_norm = query.lower().strip()
-    now = datetime.now()
-    treatments = db.query(models.Treatment).filter(models.Treatment.doctor_id == doctor_id).all()
-    REASONS = [t.name for t in treatments] if treatments else ["Consultation"]
-
-    if q_norm in ["menu", "hi", "hello", "start", "main menu"]: 
-        return {"response": "🗓️ **Appointment Agent**", "options": ["Show Today's Schedule", "Show This Week", "Book Appointment", "Cancel Appointment"]}
-    
-    if "schedule" in q_norm or "today" in q_norm or "week" in q_norm:
-        if "previous week" in q_norm: start, end, title = (now-timedelta(days=now.weekday()+7)).replace(hour=0,minute=0), (now-timedelta(days=now.weekday()+1)).replace(hour=23,minute=59), "Previous Week"
-        elif "this week" in q_norm: start, end, title = (now-timedelta(days=now.weekday())).replace(hour=0,minute=0), (now+timedelta(days=6)).replace(hour=23,minute=59), "This Week"
-        else: start, end, title = now.replace(hour=0,minute=0), now.replace(hour=23,minute=59), "Today"
-        
-        appts = db.query(models.Appointment).filter(models.Appointment.doctor_id==doctor_id, models.Appointment.start_time>=start, models.Appointment.start_time<=end).order_by(models.Appointment.start_time).all()
-        msg = f"📅 **{title}:**\n" + ("\n".join([f"- {a.start_time.strftime('%I:%M %p')}: {a.patient.user.full_name} ({a.status} - {a.treatment_type or 'General'})" for a in appts]) if appts else "No appointments.")
-        return {"response": msg, "options": ["Book Appointment", "Main Menu"]}
-    
-    if "book appointment" == q_norm:
-        recent = db.query(models.Appointment).filter(models.Appointment.doctor_id==doctor_id).order_by(desc(models.Appointment.start_time)).limit(50).all()
-        seen, btns = set(), []
-        for a in recent: 
-            if a.patient_id not in seen: btns.append(f"Select: {a.patient.user.full_name} (ID: {a.patient_id})"); seen.add(a.patient_id)
-            if len(btns)>=5: break
-        return {"response": "Select recent or **Type Patient ID**:", "options": btns + ["Main Menu"]}
-    
-    if q_norm.isdigit() or q_norm.startswith("id "):
-        pid = int(re.sub(r"\D", "", q_norm))
-        p = db.query(models.Patient).filter(models.Patient.id==pid).first()
-        return {"response": f"Booking **{p.user.full_name}** (ID: {pid}). Select Date:", "options": [f"__UI_CALENDAR__|P:{pid}", "Main Menu"]} if p else {"response": "ID Not Found", "options": ["Book Appointment"]}
-    
-    if q_norm.startswith("select:"): 
-        return {"response": f"Pick date:", "options": [f"__UI_CALENDAR__|P:{re.search(r'\(id:\s*(\d+)\)', q_norm).group(1)}", "Main Menu"]}
-    
-    if q_norm.startswith("calendar_date:"):
-        p = q_norm.replace("calendar_date: ", "").split("|")
-        slots = get_smart_slots(db, doctor_id, p[0].strip())
-        return {"response": f"Slots for **{p[0]}**:", "options": [f"Confirm: {p[0]} @ {t} | {p[1].strip()}" for t in slots]}
-    
-    if q_norm.startswith("confirm:"):
-        return {"response": "Select **Reason**:", "options": [f"Do: {r} | {q_norm.replace('confirm: ', '')}" for r in REASONS] + ["Do: Other | " + q_norm.replace('confirm: ', '')]}
-    
-    if q_norm.startswith("do:"):
-        p = q_norm.replace("do: ", "").split(" | p:")
-        reason, date_part = p[0].split(" | ")
-        dt = datetime.strptime(date_part.strip().replace(" @ ", " "), "%Y-%m-%d %I:%M %p")
-        
-        # STRICT RULE
-        active_appt = db.query(models.Appointment).filter(
-            models.Appointment.patient_id == int(p[1]),
-            models.Appointment.status.in_(["confirmed", "pending", "checked-in", "in-progress"])
-        ).first()
-        if active_appt:
-            return {
-                "response": f"❌ **Limit Reached**: Active appointment exists on {active_appt.start_time.strftime('%Y-%m-%d')}.", 
-                "options": [f"Reschedule ID {active_appt.id}", f"Cancel - ID {active_appt.id}"]
-            }
-
-        new_appt = models.Appointment(doctor_id=doctor_id, patient_id=int(p[1]), start_time=dt, end_time=dt+timedelta(minutes=30), status="confirmed", treatment_type=reason, notes=f"Reason: {reason}")
-        db.add(new_appt)
-        db.flush()
-        
-        trt = db.query(models.Treatment).filter(models.Treatment.name.ilike(reason), models.Treatment.doctor_id==doctor_id).first()
-        cost = trt.cost if trt else 500.0
-        db.add(models.Invoice(patient_id=int(p[1]), appointment_id=new_appt.id, amount=cost, status="pending", created_at=datetime.utcnow(), details=f"Appointment: {reason}"))
-        db.commit()
-        
-        send_appointment_notification(db, new_appt.id, "booked")
-        return {"response": f"✅ Booked for **{reason}**.", "options": ["Show Schedule"]}
-    
-    # --- CANCELLATION LOGIC (FIXED) ---
-    # 1. User selected a specific appointment
-    if "cancel - id" in q_norm or ("cancel" in q_norm and "id" in q_norm):
-        try:
-            match = re.search(r"id\s*[:\-]?\s*(\d+)", q_norm)
-            if not match: return {"response": "Error: Could not find Appointment ID.", "options": ["Show Schedule"]}
-            aid = int(match.group(1))
-            a = db.query(models.Appointment).filter(models.Appointment.id==aid).first()
-            if not a: return {"response": "Appointment not found.", "options": ["Show Schedule"]}
-            
-            a.status = "cancelled"
-            db.query(models.Invoice).filter(models.Invoice.appointment_id==aid, models.Invoice.status=="pending").delete()
-            db.commit()
-            
-            send_appointment_notification(db, aid, "cancelled")
-            return {"response": f"✅ Cancelled ID {aid}.", "options": ["Show Schedule"]}
-        except Exception as e:
-            return {"response": f"Error: {e}", "options": ["Show Schedule"]}
-
-    # 2. User just typed "Cancel Appointment" (Show List)
-    if "cancel" in q_norm:
-        upcoming = db.query(models.Appointment).filter(
-            models.Appointment.doctor_id == doctor_id,
-            models.Appointment.start_time > datetime.now(),
-            models.Appointment.status.in_(["confirmed", "pending"])
-        ).order_by(models.Appointment.start_time).limit(5).all()
-        
-        if not upcoming: return {"response": "No upcoming appointments.", "options": ["Main Menu"]}
-        
-        return {"response": "Select to cancel:", "options": [f"Cancel - ID {a.id} ({a.patient.user.full_name})" for a in upcoming]}
-
-    # --- RESCHEDULE ---
-    if "reschedule" in q_norm:
-        if "id" not in q_norm: return {"response": "Which one? (e.g., 'Reschedule ID 1')", "options": ["Show Schedule"]}
-        aid = int(re.search(r"id\s*(\d+)", q_norm).group(1))
-        return {"response": f"Pick new date for ID {aid}:", "options": [f"__UI_CALENDAR__|RESCHEDULE:{aid}", "Cancel Update"]}
-
-    if "RESCHEDULE:" in q_norm:
-        parts = q_norm.split("|")
-        date_str = parts[0].replace("calendar_date: ", "").strip()
-        aid = int(parts[1].replace("RESCHEDULE:", ""))
-        slots = get_smart_slots(db, doctor_id, date_str)
-        return {"response": f"New slots for **{date_str}**:", "options": [f"Move ID {aid} to {date_str} @ {t}" for t in slots]}
-
-    if q_norm.startswith("move id"):
-        match = re.search(r"move id (\d+) to (.*)", q_norm)
-        if match:
-            aid = int(match.group(1))
-            new_dt = datetime.strptime(match.group(2).strip(), "%Y-%m-%d @ %I:%M %p")
-            
-            appt = db.query(models.Appointment).filter(models.Appointment.id==aid).first()
-            appt.start_time = new_dt
-            appt.end_time = new_dt + timedelta(minutes=30)
-            db.commit()
-            
-            send_appointment_notification(db, aid, "rescheduled")
-            return {"response": f"✅ Rescheduled.", "options": ["Show Schedule"]}
-
-    if "complete & bill" in q_norm:
-        aid = int(re.search(r"id\s*(\d+)", q_norm).group(1))
-        a = db.query(models.Appointment).filter(models.Appointment.id==aid).first()
-        a.status = "completed"
-        doc = db.query(models.Doctor).filter(models.Doctor.id == doctor_id).first()
-        auto_deduct_stock(db, doc.hospital_id, a.treatment_type or "")
-        inv = db.query(models.Invoice).filter(models.Invoice.appointment_id == aid).first()
-        if inv: inv.status = "paid"; inv.details += " [Auto-Paid]"
-        db.commit()
-        return {"response": f"✅ Completed.", "options": ["Show Today's Schedule"]}
-
-    return {"response": "Error.", "options": ["Main Menu"]}
-
-# =============================================================================
-# AGENT 4: CASE TRACKING
-# =============================================================================
-def handle_case_tracking_logic(db: Session, doctor_id: int, query: str):
-    q_norm = query.lower().strip()
-    if q_norm in ["menu", "hi", "hello", "start", "main menu"]:
-        return {"response": "🩺 **Case Tracking Agent**", "options": ["Search Patient", "Recent Patients", "Write Prescription"]}
-
-    if q_norm == "recent patients":
-        appts = db.query(models.Appointment).filter(models.Appointment.doctor_id==doctor_id).order_by(desc(models.Appointment.start_time)).limit(5).all()
-        return {"response": "Recent Patients:", "options": [f"View ID {a.patient.id} ({a.patient.user.full_name})" for a in appts] + ["Main Menu"]}
-
-    if q_norm.startswith("search"):
-        return {"response": "Please type the **Patient ID** (e.g., 'ID 1'):", "options": ["Main Menu"]}
-
-    if "view id" in q_norm or "id " in q_norm or q_norm.isdigit():
-        pid = int(re.sub(r"\D", "", q_norm))
-        return {"response": f"Patient {pid} Menu:", "options": [f"History | ID:{pid}", f"Prescriptions | ID:{pid}", f"Write Rx | ID:{pid}", "Main Menu"]}
-
-    if q_norm.startswith("write rx"):
-        pid = int(re.search(r"id:(\d+)", q_norm).group(1))
-        return {"response": f"Format: **Rx: Med | Dose | Instr | ID:{pid}**"}
-
-    if q_norm.startswith("rx:"):
-        try:
-            parts = q_norm.replace("rx: ", "").split("|")
-            pid = int(re.search(r"id:(\d+)", q_norm).group(1))
-            db.add(models.Prescription(patient_id=pid, medication=parts[0], dosage=parts[1], instructions=parts[2], created_at=datetime.utcnow()))
-            db.commit()
-            return {"response": f"✅ Saved.", "options": [f"Prescriptions | ID:{pid}"]}
-        except: return {"response": "Error.", "options": ["Main Menu"]}
-
-    if " | id:" in q_norm:
-        pid = int(re.search(r"id:(\d+)", q_norm).group(1))
-        if q_norm.startswith("history"):
-            appts = db.query(models.Appointment).filter(models.Appointment.patient_id==pid).limit(5).all()
-            msg = "🗓️ **History:**\n" + "\n".join([f"- {a.treatment_type}" for a in appts])
-            return {"response": msg, "options": [f"Prescriptions | ID:{pid}", "Main Menu"]}
-        if q_norm.startswith("prescriptions"):
-            pre = db.query(models.Prescription).filter(models.Prescription.patient_id==pid).limit(5).all()
-            msg = "💊 **Rx:**\n" + "\n".join([f"- {p.medication}" for p in pre])
-            return {"response": msg, "options": [f"Write Rx | ID:{pid}", "Main Menu"]}
-
-    return {"response": "Unknown command.", "options": ["Main Menu"]}
-
-@router.post("/router")
-async def route_agent(request: AgentRequest, user: models.User=Depends(get_current_user), db: Session=Depends(get_db)):
+def extract_time_object(text):
+    text = text.lower().replace(" ", "")
+    match = re.search(r'(\d{1,2})(:(\d{2}))?([ap]m)?', text)
+    if not match: return None
+    raw = match.group(0)
     try:
-        agent = request.role.lower().replace(" ", "")
-        doc = db.query(models.Doctor).filter(models.Doctor.user_id==user.id).first()
-        if not doc: return {"response": "Error: Doctor profile not found.", "options": []}
+        for fmt in ["%I:%M%p", "%I%p", "%H:%M", "%H"]:
+            try: return datetime.strptime(raw.upper(), fmt).time()
+            except: continue
+        nums = re.findall(r'\d+', raw)
+        h = int(nums[0])
+        m = int(nums[1]) if len(nums) > 1 else 0
+        if "pm" in text and h < 12: h += 12
+        if "am" in text and h == 12: h = 0
+        return time(hour=h, minute=m)
+    except: return None
+
+def extract_number(text):
+    match = re.search(r'\b\d+\b', text)
+    if match: return int(match.group(0))
+    return 1
+
+# ==========================================
+# 3. AGENT ENDPOINT
+# ==========================================
+@router.post("/chat")
+def chat_with_agent(query: dict, db: Session = Depends(database.get_db)):
+    raw_text = query.get("message", "").lower().strip()
+    user_text = sanitize_text(raw_text)
+    
+    # --- A. INTENT DETECTION ---
+    
+    # 1. Critical Rules
+    if "cancel" in user_text:
+        if any(q in user_text for q in ["how", "show", "list"]): intent = "APPT_SHOW_CANCELLED"
+        else: intent = "APPT_CANCEL_ACTION"
+    elif "use" in user_text or "deduct" in user_text:
+        intent = "INV_USE_ACTION"
+    else:
+        # 2. ML Prediction
+        intent = predict_intent(user_text)
         
-        if agent=="appointment": return handle_appointment_logic(db, doc.id, request.user_query)
-        if agent=="revenue": return handle_revenue_logic(db, doc.id, request.user_query)
-        if agent=="inventory": return handle_inventory_logic(db, doc.id, request.user_query)
-        if agent=="casetracking": return handle_case_tracking_logic(db, doc.id, request.user_query)
-        
-        return {"response": "Ready.", "options": ["Main Menu"]}
-    except Exception as e: 
-        logging.error(f"Agent Error: {e}")
-        return {"response": f"Error: {str(e)}", "options": ["Retry"]}
+        # 3. Rule Safety Net
+        if intent == "FALLBACK":
+            # Safety Net Rules
+            present_categories = set()
+            for cat_name, keywords in brain_data.VOCAB.items():
+                if any(k in user_text for k in keywords):
+                    present_categories.add(cat_name)
+            sorted_rules = sorted(brain_data.RULES, key=lambda x: len(x['required']), reverse=True)
+            for rule in sorted_rules:
+                if all(req in present_categories for req in rule['required']):
+                    intent = rule['intent']
+                    break
+            if intent == "FALLBACK":
+                if "check" in user_text or "stock" in user_text: intent = "INV_SPECIFIC_GUESS"
+
+    # --- B. CONTEXTUAL REASONING (MEMORY) ---
+    # If the user says "details", "status", or "more", and we have context, USE IT.
+    is_follow_up = any(w in user_text for w in ["details", "status", "more", "full", "who"])
+    
+    if intent == "FALLBACK" and is_follow_up and CHAT_CONTEXT["last_intent"]:
+        logger.info(f"💡 Using Context: {CHAT_CONTEXT['last_intent']}")
+        intent = CHAT_CONTEXT["last_intent"] # Recall previous topic
+    
+    # Update Context for next turn
+    if intent != "FALLBACK":
+        CHAT_CONTEXT["last_intent"] = intent
+
+    logger.info(f"Final Intent: {intent}")
+    
+    response_data = {}
+    text_response = "I'm listening."
+    doctor = db.query(models.Doctor).first()
+
+    try:
+        now = datetime.now()
+
+        # --- LOGIC HANDLERS ---
+
+        # 1. SCHEDULE (Rich Details Restored)
+        if intent == "APPT_TODAY":
+            appts = db.query(models.Appointment).filter(func.date(models.Appointment.start_time)==now.date()).order_by(models.Appointment.start_time).all()
+            
+            # Smart Filter: If user asks specifically for status/details, show EVERYTHING including cancelled
+            show_all = "status" in user_text or "details" in user_text or "cancelled" in user_text
+            active = appts if show_all else [a for a in appts if a.status != 'cancelled']
+            
+            if not active:
+                text_response = "🗓️ No active appointments today."
+            else:
+                list_str = ""
+                for a in active:
+                    # Rich Icons
+                    if a.status == "completed": icon = "✅"
+                    elif a.status == "cancelled": icon = "❌"
+                    elif a.status == "in_progress": icon = "▶️"
+                    else: icon = "⏳"
+                    
+                    p_name = a.patient.user.full_name if a.patient and a.patient.user else "Unknown"
+                    time_s = a.start_time.strftime('%I:%M %p')
+                    treatment = a.treatment_type if a.treatment_type else "General Checkup"
+                    
+                    # Format: ✅ 09:00 AM - Ali Khan (Completed) | Treatment
+                    list_str += f"{icon} **{time_s}** - {p_name}\n   Status: {a.status} | {treatment}\n"
+                
+                count_label = "Total" if show_all else "Active"
+                text_response = f"🗓️ **Today's Schedule ({len(active)} {count_label}):**\n\n{list_str}"
+
+        # 2. TOMORROW (Rich Details)
+        elif intent == "APPT_TOMORROW":
+            d = (now + timedelta(days=1)).date()
+            appts = db.query(models.Appointment).filter(func.date(models.Appointment.start_time) == d, models.Appointment.status != 'cancelled').order_by(models.Appointment.start_time).all()
+            if not appts: text_response = "🔮 No appointments tomorrow."
+            else:
+                list_str = ""
+                for a in appts:
+                    p_name = a.patient.user.full_name if a.patient and a.patient.user else "Unknown"
+                    list_str += f"• {a.start_time.strftime('%I:%M %p')} - {p_name} ({a.treatment_type})\n"
+                text_response = f"🔮 Tomorrow ({len(appts)}):\n{list_str}"
+
+        # 3. REVENUE FORECAST (Pandas)
+        elif intent == "REV_FORECAST":
+            invoices = db.query(models.Invoice).filter(models.Invoice.status=="paid").all()
+            if not invoices:
+                text_response = "Not enough data to forecast revenue."
+            else:
+                data = [{"date": i.created_at, "amount": i.amount} for i in invoices]
+                df = pd.DataFrame(data)
+                df['date'] = pd.to_datetime(df['date'])
+                daily = df.groupby(df['date'].dt.date)['amount'].sum()
+                avg_daily = daily.mean()
+                forecast = avg_daily * 30
+                text_response = f"📈 Based on your daily average of Rs. {avg_daily:.0f}, I project next month's revenue to be approx Rs. {forecast:,.0f}."
+
+        # 4. INVENTORY (RapidFuzz)
+        elif intent == "INV_SPECIFIC_GUESS":
+             ignore = ["check", "stock", "how", "many", "have", "we", "the", "of"]
+             clean = " ".join([w for w in user_text.split() if w not in ignore])
+             item = fuzzy_fix_item_name(clean, db)
+             if item: text_response = f"🔍 Found '{item.name}': {item.quantity} {item.unit} in stock."
+             else: text_response = f"I couldn't find an item matching '{clean}'."
+
+        # 5. CANCELLATION ACTION
+        elif intent == "APPT_CANCEL_ACTION":
+            t = extract_time_object(user_text)
+            if not t: text_response = "What time? (e.g., 'Cancel 9pm')"
+            else:
+                req_dt = datetime.combine(now.date(), t)
+                appt = db.query(models.Appointment).filter(
+                    models.Appointment.doctor_id == doctor.id,
+                    models.Appointment.status != "cancelled",
+                    models.Appointment.start_time >= req_dt - timedelta(minutes=30),
+                    models.Appointment.start_time <= req_dt + timedelta(minutes=30)
+                ).first()
+                if appt:
+                    appt.status = "cancelled"
+                    inv = db.query(models.Invoice).filter(models.Invoice.appointment_id == appt.id, models.Invoice.status == "pending").first()
+                    if inv: inv.status = "cancelled"
+                    db.commit()
+                    text_response = f"✅ Cancelled appointment at {appt.start_time.strftime('%I:%M %p')}."
+                else: text_response = f"No appointment found at {t.strftime('%I:%M %p')}."
+
+        # 6. BASIC QUERIES
+        elif intent == "REV_TODAY":
+            val = db.query(func.sum(models.Invoice.amount)).filter(models.Invoice.status=="paid", func.date(models.Invoice.created_at)==now.date()).scalar() or 0
+            text_response = f"💰 Today's Revenue: Rs. {val}"
+
+        elif intent == "APPT_WEEK":
+             d = now.date() + timedelta(days=7)
+             c = db.query(models.Appointment).filter(models.Appointment.start_time >= now, models.Appointment.start_time <= datetime.combine(d, datetime.min.time()), models.Appointment.status != 'cancelled').count()
+             text_response = f"📅 Weekly Outlook: {c} active appointments."
+
+        elif intent == "REV_WEEK":
+             start = now - timedelta(days=7)
+             val = db.query(func.sum(models.Invoice.amount)).filter(models.Invoice.status=="paid", models.Invoice.created_at >= start).scalar() or 0
+             text_response = f"💰 Revenue (Last 7 Days): Rs. {val}"
+             
+        elif intent == "INV_CHECK_LOW":
+             low = db.query(models.InventoryItem).filter(models.InventoryItem.quantity < models.InventoryItem.min_threshold).all()
+             names = ", ".join([i.name for i in low]) if low else "None"
+             text_response = f"📦 Low Stock Items: {names}"
+
+        elif intent == "INV_USE_ACTION":
+            qty = extract_number(user_text)
+            text_response = f"Assuming you want to deduct {qty} items. Please specify the item name next time."
+
+        else:
+            text_response = brain_data.RESPONSE_TEMPLATES.get("FALLBACK")[0]
+
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        text_response = f"System Error: {str(e)}"
+
+    return {"response": text_response, "intent": intent}
