@@ -17,9 +17,9 @@ GEMINI_API_KEY = "AIzaSyC6fjUWaMF3GWl4UyTWdKAr4JdnnzFKR3s"
 MAX_AGENT_STEPS = 5
 
 # --- NEW: EMAIL CONFIGURATION (SMTP) ---
-# Use 'smtp.gmail.com' for Gmail, Port 587
+# Use 'smtp.gmail.com' for Gmail, Port 465
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
-EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", 465))
 EMAIL_USER = os.getenv("EMAIL_USER", "apna.app05@gmail.com")
 # IMPORTANT: For Gmail, use an 'App Password', not your login password.
 EMAIL_PASSWORD = "jcby crgf pzqy xmlf"

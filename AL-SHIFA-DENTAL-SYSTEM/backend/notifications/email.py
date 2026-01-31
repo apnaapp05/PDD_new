@@ -11,13 +11,12 @@ logger = logging.getLogger(__name__)
 
 class EmailAdapter:
     """
-    Real SMTP Email Adapter with HTML support.
+    Real SMTP Email Adapter with SSL support (Port 465).
     """
 
     def send(self, to_email: str, subject: str, body: str, html_body: str = None):
         """
-        Sends an email. 
-        If html_body is provided, it sends a multipart email (Text + HTML).
+        Sends an email via SMTP_SSL.
         """
         try:
             # Create the container (outer) email message.
@@ -35,9 +34,8 @@ class EmailAdapter:
                 part2 = MIMEText(html_body, 'html')
                 msg.attach(part2)
 
-            # Send the email via SMTP server.
-            with smtplib.SMTP(config.EMAIL_HOST, config.EMAIL_PORT) as server:
-                server.starttls()
+            # --- KEY CHANGE: Use SMTP_SSL for Port 465 ---
+            with smtplib.SMTP_SSL(config.EMAIL_HOST, config.EMAIL_PORT) as server:
                 server.login(config.EMAIL_USER, config.EMAIL_PASSWORD)
                 server.sendmail(config.EMAIL_USER, to_email, msg.as_string())
             
@@ -46,4 +44,5 @@ class EmailAdapter:
 
         except Exception as e:
             logger.error(f"Failed to send email to {to_email}: {e}")
+            # We re-raise the exception so main.py knows it failed
             raise e

@@ -59,7 +59,7 @@ def create_default_admin(db: Session):
             full_name="System Admin", 
             role="admin", 
             is_email_verified=True, 
-            password_hash=pwd_hash, # FIXED
+            password_hash=pwd_hash,
             phone_number="000-000-0000",
             address="Admin HQ"
         ))
@@ -80,7 +80,7 @@ async def lifespan(app: FastAPI):
         db.close()
     yield
 
-# --- APP INITIALIZATION (Moved to Top) ---
+# --- APP INITIALIZATION ---
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -178,7 +178,7 @@ def create_appointment(appt: schemas.AppointmentCreate, user: models.User = Depe
     
     if start_dt < datetime.now(): raise HTTPException(400, "Cannot book past time")
     
-    # --- STRICT RULE: ONE ACTIVE APPOINTMENT PER PATIENT ---
+    # STRICT RULE: ONE ACTIVE APPOINTMENT PER PATIENT
     active_appt = db.query(models.Appointment).filter(
         models.Appointment.patient_id == patient.id,
         models.Appointment.status.in_(["confirmed", "pending", "checked-in", "in_progress"])
@@ -186,7 +186,6 @@ def create_appointment(appt: schemas.AppointmentCreate, user: models.User = Depe
     
     if active_appt:
         raise HTTPException(400, f"You already have an active appointment on {active_appt.start_time.strftime('%Y-%m-%d')}. Please cancel or reschedule it first.")
-    # -------------------------------------------------------
 
     end_dt = start_dt + timedelta(minutes=30)
 
@@ -375,10 +374,13 @@ def complete_appointment(id: int, user: models.User = Depends(get_current_user),
         t = db.query(models.Treatment).filter(models.Treatment.name == appt.treatment_type, models.Treatment.hospital_id == doc.hospital_id).first()
         db.add(models.Invoice(appointment_id=appt.id, patient_id=appt.patient_id, amount=t.cost if t else 0, status="paid"))
 
+    # DEDUCT STOCK BASED ON RECIPE
     t = db.query(models.Treatment).filter(models.Treatment.name == appt.treatment_type, models.Treatment.hospital_id == doc.hospital_id).first()
     if t:
-        for l in t.required_items: l.item.quantity = max(0, l.item.quantity - l.quantity_required)
-
+        for l in t.required_items:
+             if l.item:
+                l.item.quantity = max(0, l.item.quantity - l.quantity_required)
+    
     appt.status = "completed"; db.commit()
     return {"message": "Completed", "status": "completed"}
 
@@ -407,6 +409,7 @@ async def upload_treatments(file: UploadFile = File(...), user: models.User = De
         db.commit(); return {"message": f"Uploaded {count} treatments"}
     except Exception as e: db.rollback(); raise HTTPException(400, f"Error: {str(e)}")
 
+# --- ROBUST INVENTORY UPLOAD (Fixed) ---
 @doctor_router.post("/inventory/upload")
 @app.post("/api/inventory/upload")
 async def upload_inventory(
@@ -418,18 +421,14 @@ async def upload_inventory(
         raise HTTPException(status_code=400, detail="Invalid file type. Please upload a CSV.")
 
     content = await file.read()
-    # Decode with utf-8-sig to handle Excel BOM
     decoded = content.decode("utf-8-sig").splitlines()
     reader = csv.DictReader(decoded)
 
-    # Helper to normalize headers (strip spaces, lowercase)
     headers = [h.lower().strip() for h in reader.fieldnames] if reader.fieldnames else []
     
-    # Validation
     if not any("name" in h for h in headers) or not any("qty" in h or "quantity" in h for h in headers):
         return JSONResponse(status_code=400, content={"detail": "CSV must have 'Item Name' and 'Quantity' columns."})
 
-    # Get Hospital Context
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == current_user.id).first()
     hid = doc.hospital_id if doc else 1
     
@@ -438,7 +437,6 @@ async def upload_inventory(
 
     try:
         for row in reader:
-            # Clean row keys
             row = {k.lower().strip(): v for k, v in row.items()}
             
             name = row.get("item name") or row.get("name")
@@ -446,11 +444,8 @@ async def upload_inventory(
             
             qty = int(row.get("quantity") or row.get("qty") or 0)
             unit = row.get("unit") or "Pcs"
-            
-            # CAPTURE THRESHOLD (Look for 'min threshold', 'min', 'threshold')
             threshold = int(row.get("min threshold") or row.get("min") or row.get("threshold") or 10)
 
-            # Update existing or Create new
             existing = db.query(models.InventoryItem).filter(
                 models.InventoryItem.hospital_id == hid, 
                 models.InventoryItem.name == name
@@ -459,7 +454,7 @@ async def upload_inventory(
             if existing:
                 existing.quantity = qty
                 existing.unit = unit
-                existing.min_threshold = threshold # Update threshold
+                existing.min_threshold = threshold
                 updated += 1
             else:
                 new_item = models.InventoryItem(
@@ -478,98 +473,6 @@ async def upload_inventory(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Row Error: {str(e)}")
-async def upload_inventory(
-    file: UploadFile = File(...), 
-    db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_current_user)
-):
-    if not file.filename.endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Invalid file type. Please upload a CSV.")
-
-    content = await file.read()
-    # Decode with utf-8-sig to handle Excel BOM
-    decoded = content.decode("utf-8-sig").splitlines()
-    reader = csv.DictReader(decoded)
-
-    # Helper to normalize headers (strip spaces, lowercase)
-    headers = [h.lower().strip() for h in reader.fieldnames] if reader.fieldnames else []
-    
-    # Validation
-    if not any("name" in h for h in headers) or not any("qty" in h or "quantity" in h for h in headers):
-        return JSONResponse(status_code=400, content={"detail": "CSV must have 'Item Name' and 'Quantity' columns."})
-
-    # Get Hospital Context
-    doc = db.query(models.Doctor).filter(models.Doctor.user_id == current_user.id).first()
-    hid = doc.hospital_id if doc else 1
-    
-    count = 0
-    updated = 0
-
-    try:
-        for row in reader:
-            # Clean row keys
-            row = {k.lower().strip(): v for k, v in row.items()}
-            
-            name = row.get("item name") or row.get("name")
-            if not name: continue
-            
-            qty = int(row.get("quantity") or row.get("qty") or 0)
-            unit = row.get("unit") or "Pcs"
-            
-            # CAPTURE THRESHOLD (Look for 'min threshold', 'min', 'threshold')
-            threshold = int(row.get("min threshold") or row.get("min") or row.get("threshold") or 10)
-
-            # Update existing or Create new
-            existing = db.query(models.InventoryItem).filter(
-                models.InventoryItem.hospital_id == hid, 
-                models.InventoryItem.name == name
-            ).first()
-            
-            if existing:
-                existing.quantity = qty
-                existing.unit = unit
-                existing.min_threshold = threshold # Update threshold
-                updated += 1
-            else:
-                new_item = models.InventoryItem(
-                    hospital_id=hid,
-                    name=name,
-                    quantity=qty,
-                    unit=unit,
-                    min_threshold=threshold
-                )
-                db.add(new_item)
-                count += 1
-        
-        db.commit()
-        return {"message": f"✅ Upload Complete: {count} new, {updated} updated."}
-
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Row Error: {str(e)}")
-async def upload_inventory(file: UploadFile = File(...), user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if user.role != "doctor": raise HTTPException(403)
-    doctor = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
-    try:
-        content = await file.read()
-        decoded = content.decode("utf-8-sig").splitlines()
-        csvReader = csv.DictReader(decoded)
-        count = 0
-        for row in csvReader:
-            data = {k.lower().strip(): v.strip() for k, v in row.items() if k}
-            name = data.get("item name") or data.get("name")
-            qty_str = data.get("quantity") or data.get("qty")
-            unit = data.get("unit") or "pcs"
-            thresh = data.get("min threshold") or data.get("min") or 10
-            if not name or not qty_str: continue
-            try: qty = int(qty_str)
-            except: continue
-            existing = db.query(models.InventoryItem).filter(models.InventoryItem.hospital_id == doctor.hospital_id, models.InventoryItem.name == name).first()
-            if existing: existing.quantity += qty
-            else: db.add(models.InventoryItem(hospital_id=doctor.hospital_id, name=name, quantity=qty, unit=unit, threshold=thresh))
-            count += 1
-        db.commit(); return {"message": f"Uploaded {count} items"}
-    except Exception as e: db.rollback(); raise HTTPException(400, f"Error: {str(e)}")
 
 @doctor_router.get("/treatments")
 def get_doc_treatments(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -947,6 +850,3 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 app.include_router(auth_router); app.include_router(admin_router); app.include_router(org_router); app.include_router(doctor_router); app.include_router(public_router)
 app.include_router(agent_routes.router)
 os.makedirs("media", exist_ok=True); app.mount("/media", StaticFiles(directory="media"), name="media")
-
-
-

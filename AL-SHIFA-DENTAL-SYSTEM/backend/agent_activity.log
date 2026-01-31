@@ -1,0 +1,29 @@
+2026-01-30 19:23:15,763 | INFO | [AGENT=notification] ACTION=email_send_attempt PAYLOAD={'to': 'pat1@test.com', 'subject': 'Appointment Confirmed - Al-Shifa Dental'}
+2026-01-30 19:23:20,307 | INFO | Email sent successfully to pat1@test.com
+2026-01-31 11:10:53,324 | ERROR | Agent Error: 'Patient' object has no attribute 'date_of_birth'
+2026-01-31 11:11:28,824 | INFO | [AGENT=notification] ACTION=email_send_attempt PAYLOAD={'to': 'pat1@test.com', 'subject': 'Appointment Cancelled'}
+2026-01-31 11:11:50,734 | ERROR | Failed to send email to pat1@test.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-01-31 11:12:13,774 | ERROR | Failed to send email to pat1@test.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-01-31 11:12:36,811 | ERROR | Failed to send email to pat1@test.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-01-31 11:12:38,812 | ERROR | Failed to send notification: RetryQueue exhausted after 3 attempts
+2026-01-31 11:17:21,263 | ERROR | Agent Error: 'NoneType' object has no attribute 'group'
+2026-01-31 11:37:42,285 | INFO | [AGENT=notification] ACTION=email_send_attempt PAYLOAD={'to': 'pat1@test.com', 'subject': 'Appointment Cancelled'}
+2026-01-31 11:38:06,739 | ERROR | Failed to send email to pat1@test.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-01-31 11:38:29,797 | ERROR | Failed to send email to pat1@test.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-01-31 11:38:52,844 | ERROR | Failed to send email to pat1@test.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-01-31 11:38:54,846 | ERROR | Failed to send notification: RetryQueue exhausted after 3 attempts
+2026-01-31 11:38:54,871 | ERROR | Agent Error: 'NoneType' object has no attribute 'group'
+2026-01-31 11:46:58,111 | ERROR | Agent Error: 'NoneType' object has no attribute 'group'
+2026-01-31 11:48:38,991 | ERROR | Agent Error: 'NoneType' object has no attribute 'group'
+2026-01-31 11:52:53,895 | ERROR | Failed to send email to syedakhiyarhussain@gmail.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-01-31 11:52:53,896 | ERROR | Failed to send email to syedakhiyarhussain@gmail.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-01-31 12:07:15,193 | ERROR | Failed to send email to akhiyarhussains1769.sse@saveetha.com: EmailAdapter.send() got an unexpected keyword argument 'html_body'
+2026-01-31 12:10:47,879 | ERROR | Failed to send email to akhiyarhussains1769.sse@saveetha.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-01-31 12:10:47,880 | ERROR | Failed to send email to akhiyarhussains1769.sse@saveetha.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-01-31 12:17:06,456 | ERROR | Failed to send email to syedakhiyarhussain@gmail.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-01-31 12:17:06,456 | ERROR | Failed to send email to syedakhiyarhussain@gmail.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-01-31 12:29:26,830 | INFO | [AGENT=notification] ACTION=email_send_attempt PAYLOAD={'to': 'pat2@test.com', 'subject': 'Appointment Booked - Al-Shifa Dental'}
+2026-01-31 12:29:47,931 | ERROR | Failed to send email to pat2@test.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-01-31 12:30:10,953 | ERROR | Failed to send email to pat2@test.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-01-31 12:30:33,983 | ERROR | Failed to send email to pat2@test.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-01-31 12:30:35,984 | ERROR | Notification Failed: RetryQueue exhausted after 3 attempts
