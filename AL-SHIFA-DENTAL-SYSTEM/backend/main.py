@@ -505,7 +505,7 @@ def get_inv(user: models.User = Depends(get_current_user), db: Session = Depends
 @doctor_router.post("/inventory")
 def add_inv(item: schemas.InventoryItemCreate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
-    db.add(models.InventoryItem(hospital_id=doc.hospital_id, name=item.name, quantity=item.quantity, unit=item.unit, min_threshold=item.threshold))
+    db.add(models.InventoryItem(hospital_id=doc.hospital_id, name=item.name, quantity=item.quantity, unit=item.unit, min_threshold=item.min_threshold))
     db.commit(); return {"message": "Added"}
 
 @doctor_router.get("/schedule")
@@ -717,7 +717,7 @@ def verify_otp(data: schemas.VerifyOTP, db: Session = Depends(get_db)):
 def me(u: models.User = Depends(get_current_user), db: Session = Depends(get_db)): 
     if u.role == "doctor":
         d = db.query(models.Doctor).filter(models.Doctor.user_id == u.id).first()
-        if d: u.specialization = d.specialization; u.license_number = d.license_number
+        if d: u.specialization = d.specialization; # u.license_number line removed to prevent crash if missing
     return u
 
 @auth_router.put("/profile")

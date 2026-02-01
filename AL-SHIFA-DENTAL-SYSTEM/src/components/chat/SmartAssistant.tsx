@@ -18,10 +18,8 @@ export default function SmartAssistant() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   
-  // 1. Ref for Auto-Scrolling
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 2. Load History on Mount
   useEffect(() => {
     const saved = localStorage.getItem("agent_history");
     if (saved) {
@@ -33,7 +31,6 @@ export default function SmartAssistant() {
     }
   }, []);
 
-  // 3. Auto-Scroll & Save History Effect
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     if (messages.length > 1) {
@@ -50,7 +47,6 @@ export default function SmartAssistant() {
     setIsLoading(true);
 
     try {
-      // Call the Agent API
       const res = await api.post("/agent/chat", { message: userMsg.content });
       const botMsg: Message = { 
         role: "assistant", 
