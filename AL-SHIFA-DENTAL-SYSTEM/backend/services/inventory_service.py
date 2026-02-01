@@ -7,11 +7,9 @@ class InventoryService:
         self.doc_id = doctor_id
 
     def update_stock(self, item_name: str, qty_change: int):
-        # 1. Find Item
         item = self.db.query(InventoryItem).filter(InventoryItem.name.ilike(f"%{item_name}%")).first()
         if not item: raise ValueError(f"Item '{item_name}' not found.")
         
-        # 2. Logic: Prevent negative stock
         if item.quantity + qty_change < 0:
             raise ValueError(f"Cannot deduct {abs(qty_change)}. Only {item.quantity} in stock.")
             
@@ -19,15 +17,18 @@ class InventoryService:
         self.db.commit()
         return item
 
+    def get_low_stock(self):
+        """REAL LOGIC: Returns items <= threshold"""
+        return self.db.query(InventoryItem).filter(
+            InventoryItem.quantity <= InventoryItem.min_threshold
+        ).all()
+
     def update_treatment_price(self, treatment_name: str, new_price: float):
         t = self.db.query(Treatment).filter(
             Treatment.doctor_id == self.doc_id, 
             Treatment.name.ilike(f"%{treatment_name}%")
         ).first()
-        
         if not t: raise ValueError(f"Treatment '{treatment_name}' not found.")
-        if new_price < 0: raise ValueError("Price cannot be negative.")
-        
         t.cost = new_price
         self.db.commit()
         return t
