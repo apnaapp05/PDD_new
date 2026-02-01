@@ -493,12 +493,15 @@ def get_doc_treatments(user: models.User = Depends(get_current_user), db: Sessio
 @doctor_router.post("/treatments")
 def create_treatment(data: schemas.TreatmentCreate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
-    # Check if treatment exists for THIS doctor
-    existing = db.query(models.Treatment).filter(models.Treatment.doctor_id == doc.id, models.Treatment.name == data.name).first()
-    if existing: raise HTTPException(400, "Treatment already exists")
     
+    # FIX: Check if treatment exists for THIS doctor
+    if db.query(models.Treatment).filter(models.Treatment.doctor_id == doc.id, models.Treatment.name == data.name).first():
+        raise HTTPException(400, "Treatment already exists")
+
+    # FIX: Link strictly to doctor_id
     db.add(models.Treatment(hospital_id=doc.hospital_id, doctor_id=doc.id, name=data.name, cost=data.cost, description=data.description))
-    db.commit(); return {"message": "Created"}
+    db.commit()
+    return {"message": "Created"}
 
 @doctor_router.post("/treatments/{tid}/link-inventory")
 def link_inv(tid: int, data: schemas.TreatmentLinkCreate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -860,4 +863,3 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 app.include_router(auth_router); app.include_router(admin_router); app.include_router(org_router); app.include_router(doctor_router); app.include_router(public_router)
 app.include_router(agent_routes.router)
 os.makedirs("media", exist_ok=True); app.mount("/media", StaticFiles(directory="media"), name="media")
-
