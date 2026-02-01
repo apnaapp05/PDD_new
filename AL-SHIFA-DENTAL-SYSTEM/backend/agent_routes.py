@@ -21,258 +21,224 @@ try:
 except ImportError:
     HAS_ML = False
 
-# LOGGING
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AgentBrain")
 
 router = APIRouter(prefix="/api/agent", tags=["AI Agent"])
 
-# ==========================================
-# 0. MEMORY (CONTEXT STORAGE)
-# ==========================================
-# Stores the last intent per user session (Simplified Global for Demo)
-# In production, use a dictionary keyed by user_id
-CHAT_CONTEXT = {
-    "last_intent": None,
-    "last_data": None
-}
-
-# ==========================================
-# 1. ML BRAIN INITIALIZATION
-# ==========================================
+# --- 1. ML INIT ---
 model = None
-
 if HAS_ML:
     logger.info("🧠 Training Agentic Model...")
     X_train = [text for text, label in brain_data.TRAINING_DATA]
     y_train = [label for text, label in brain_data.TRAINING_DATA]
     model = make_pipeline(CountVectorizer(), MultinomialNB())
     model.fit(X_train, y_train)
-    logger.info("✅ Agentic Model Trained!")
 
-# ==========================================
-# 2. INTELLIGENT HELPERS
-# ==========================================
+CHAT_CONTEXT = {"last_intent": None}
+
+# --- 2. HELPERS ---
 def sanitize_text(text):
-    """Auto-corrects common typos."""
     corrections = {
-        "shedule": "schedule", "schedual": "schedule", "apointment": "appointment",
-        "revenue": "revenue", "invntory": "inventory", "tody": "today", 
-        "todays": "today", "today's": "today", "tomorow": "tomorrow", "canceled": "cancelled",
-        "detals": "details", "statue": "status"
+        "shedule": "schedule", "apointment": "appointment", "revenue": "revenue",
+        "invntory": "inventory", "tody": "today", "canceled": "cancelled",
+        "rct": "Root Canal", "cleaning": "Teeth Cleaning"
     }
-    clean_text = re.sub(r"[^\w\s]", "", text) 
-    words = clean_text.split()
-    fixed_words = [corrections.get(w, w) for w in words]
-    return " ".join(fixed_words)
+    clean = re.sub(r"[^\w\s]", "", text) 
+    words = clean.split()
+    return " ".join([corrections.get(w, w) for w in words])
 
 def predict_intent(text):
-    """Uses Scikit-Learn to predict intent."""
     if not model: return "FALLBACK"
-    predicted = model.predict([text])[0]
     probs = model.predict_proba([text])[0]
-    confidence = max(probs)
-    if confidence < 0.35: return "FALLBACK"
-    return predicted
+    if max(probs) < 0.35: return "FALLBACK"
+    return model.predict([text])[0]
 
-def fuzzy_fix_item_name(user_input, db: Session):
-    items = db.query(models.InventoryItem).all()
-    item_names = [i.name for i in items]
-    if not item_names: return None
-    match = process.extractOne(user_input, item_names, scorer=fuzz.token_sort_ratio)
-    if match and match[1] > 60:
-        return db.query(models.InventoryItem).filter(models.InventoryItem.name == match[0]).first()
-    return None
-
-def extract_time_object(text):
-    text = text.lower().replace(" ", "")
-    match = re.search(r'(\d{1,2})(:(\d{2}))?([ap]m)?', text)
-    if not match: return None
-    raw = match.group(0)
-    try:
+def extract_time(text):
+    match = re.search(r'(\d{1,2})(:(\d{2}))?([ap]m)?', text.lower().replace(" ", ""))
+    if match:
+        raw = match.group(0)
         for fmt in ["%I:%M%p", "%I%p", "%H:%M", "%H"]:
             try: return datetime.strptime(raw.upper(), fmt).time()
             except: continue
-        nums = re.findall(r'\d+', raw)
-        h = int(nums[0])
-        m = int(nums[1]) if len(nums) > 1 else 0
-        if "pm" in text and h < 12: h += 12
-        if "am" in text and h == 12: h = 0
-        return time(hour=h, minute=m)
-    except: return None
+    return None
 
-def extract_number(text):
+def extract_money(text):
     match = re.search(r'\b\d+\b', text)
-    if match: return int(match.group(0))
-    return 1
+    return int(match.group(0)) if match else None
 
-# ==========================================
-# 3. AGENT ENDPOINT
-# ==========================================
+# --- 3. MASTER ROUTE ---
 @router.post("/chat")
 def chat_with_agent(query: dict, db: Session = Depends(database.get_db)):
     raw_text = query.get("message", "").lower().strip()
     user_text = sanitize_text(raw_text)
     
-    # --- A. INTENT DETECTION ---
-    
-    # 1. Critical Rules
-    if "cancel" in user_text:
-        if any(q in user_text for q in ["how", "show", "list"]): intent = "APPT_SHOW_CANCELLED"
-        else: intent = "APPT_CANCEL_ACTION"
-    elif "use" in user_text or "deduct" in user_text:
-        intent = "INV_USE_ACTION"
+    # Intent Detection
+    if "block" in user_text: intent = "APPT_BLOCK"
+    elif "history" in user_text: intent = "PAT_HISTORY"
+    elif "update" in user_text and "price" in user_text: intent = "TREAT_PRICE_UPDATE"
+    elif "buying cost" in user_text: intent = "INV_COST_UPDATE"
+    elif "profit" in user_text: intent = "FIN_PROFIT"
+    elif "complete" in user_text or "mark" in user_text: intent = "APPT_COMPLETE"
     else:
-        # 2. ML Prediction
         intent = predict_intent(user_text)
-        
-        # 3. Rule Safety Net
         if intent == "FALLBACK":
-            # Safety Net Rules
-            present_categories = set()
-            for cat_name, keywords in brain_data.VOCAB.items():
-                if any(k in user_text for k in keywords):
-                    present_categories.add(cat_name)
-            sorted_rules = sorted(brain_data.RULES, key=lambda x: len(x['required']), reverse=True)
-            for rule in sorted_rules:
-                if all(req in present_categories for req in rule['required']):
-                    intent = rule['intent']
-                    break
-            if intent == "FALLBACK":
-                if "check" in user_text or "stock" in user_text: intent = "INV_SPECIFIC_GUESS"
+             # Fallback Rule Logic (Simplified)
+             if "schedule" in user_text: intent = "APPT_TODAY"
+             elif "revenue" in user_text: intent = "REV_TODAY"
+             elif "stock" in user_text: intent = "INV_SPECIFIC_GUESS"
 
-    # --- B. CONTEXTUAL REASONING (MEMORY) ---
-    # If the user says "details", "status", or "more", and we have context, USE IT.
-    is_follow_up = any(w in user_text for w in ["details", "status", "more", "full", "who"])
-    
-    if intent == "FALLBACK" and is_follow_up and CHAT_CONTEXT["last_intent"]:
-        logger.info(f"💡 Using Context: {CHAT_CONTEXT['last_intent']}")
-        intent = CHAT_CONTEXT["last_intent"] # Recall previous topic
-    
-    # Update Context for next turn
-    if intent != "FALLBACK":
-        CHAT_CONTEXT["last_intent"] = intent
+    CHAT_CONTEXT["last_intent"] = intent
+    logger.info(f"Intent: {intent} | Text: {user_text}")
 
-    logger.info(f"Final Intent: {intent}")
-    
-    response_data = {}
-    text_response = "I'm listening."
     doctor = db.query(models.Doctor).first()
+    now = datetime.now()
+    text_response = "I processed your request."
 
     try:
-        now = datetime.now()
-
-        # --- LOGIC HANDLERS ---
-
-        # 1. SCHEDULE (Rich Details Restored)
-        if intent == "APPT_TODAY":
-            appts = db.query(models.Appointment).filter(func.date(models.Appointment.start_time)==now.date()).order_by(models.Appointment.start_time).all()
-            
-            # Smart Filter: If user asks specifically for status/details, show EVERYTHING including cancelled
-            show_all = "status" in user_text or "details" in user_text or "cancelled" in user_text
-            active = appts if show_all else [a for a in appts if a.status != 'cancelled']
-            
-            if not active:
-                text_response = "🗓️ No active appointments today."
+        # === A. SCHEDULE & BLOCKING ===
+        if intent == "APPT_BLOCK":
+            t = extract_time(user_text)
+            if not t: text_response = "Please specify time. (e.g., 'Block 3pm')"
             else:
-                list_str = ""
-                for a in active:
-                    # Rich Icons
-                    if a.status == "completed": icon = "✅"
-                    elif a.status == "cancelled": icon = "❌"
-                    elif a.status == "in_progress": icon = "▶️"
-                    else: icon = "⏳"
-                    
-                    p_name = a.patient.user.full_name if a.patient and a.patient.user else "Unknown"
-                    time_s = a.start_time.strftime('%I:%M %p')
-                    treatment = a.treatment_type if a.treatment_type else "General Checkup"
-                    
-                    # Format: ✅ 09:00 AM - Ali Khan (Completed) | Treatment
-                    list_str += f"{icon} **{time_s}** - {p_name}\n   Status: {a.status} | {treatment}\n"
+                target_dt = datetime.combine(now.date(), t)
+                # Cascading Check
+                existing = db.query(models.Appointment).filter(
+                    models.Appointment.doctor_id == doctor.id,
+                    models.Appointment.start_time == target_dt,
+                    models.Appointment.status != "cancelled"
+                ).first()
                 
-                count_label = "Total" if show_all else "Active"
-                text_response = f"🗓️ **Today's Schedule ({len(active)} {count_label}):**\n\n{list_str}"
+                msg = ""
+                if existing:
+                    existing.status = "cancelled"
+                    inv = db.query(models.Invoice).filter(models.Invoice.appointment_id == existing.id).first()
+                    if inv: inv.status = "cancelled"
+                    msg = f"⚠️ Cancelled existing appt for {existing.patient.user.full_name}. "
+                
+                # Create Block
+                block = models.Appointment(doctor_id=doctor.id, start_time=target_dt, status="blocked", treatment_type="Blocked Slot")
+                db.add(block)
+                db.commit()
+                text_response = f"✅ {msg}Time slot {t.strftime('%I:%M %p')} is now BLOCKED."
 
-        # 2. TOMORROW (Rich Details)
-        elif intent == "APPT_TOMORROW":
-            d = (now + timedelta(days=1)).date()
-            appts = db.query(models.Appointment).filter(func.date(models.Appointment.start_time) == d, models.Appointment.status != 'cancelled').order_by(models.Appointment.start_time).all()
-            if not appts: text_response = "🔮 No appointments tomorrow."
+        # === B. AUTO-PAY & COMPLETION ===
+        elif intent == "APPT_COMPLETE":
+            t = extract_time(user_text)
+            if not t: text_response = "Which appointment? (e.g., 'Mark 9am as completed')"
             else:
-                list_str = ""
-                for a in appts:
-                    p_name = a.patient.user.full_name if a.patient and a.patient.user else "Unknown"
-                    list_str += f"• {a.start_time.strftime('%I:%M %p')} - {p_name} ({a.treatment_type})\n"
-                text_response = f"🔮 Tomorrow ({len(appts)}):\n{list_str}"
-
-        # 3. REVENUE FORECAST (Pandas)
-        elif intent == "REV_FORECAST":
-            invoices = db.query(models.Invoice).filter(models.Invoice.status=="paid").all()
-            if not invoices:
-                text_response = "Not enough data to forecast revenue."
-            else:
-                data = [{"date": i.created_at, "amount": i.amount} for i in invoices]
-                df = pd.DataFrame(data)
-                df['date'] = pd.to_datetime(df['date'])
-                daily = df.groupby(df['date'].dt.date)['amount'].sum()
-                avg_daily = daily.mean()
-                forecast = avg_daily * 30
-                text_response = f"📈 Based on your daily average of Rs. {avg_daily:.0f}, I project next month's revenue to be approx Rs. {forecast:,.0f}."
-
-        # 4. INVENTORY (RapidFuzz)
-        elif intent == "INV_SPECIFIC_GUESS":
-             ignore = ["check", "stock", "how", "many", "have", "we", "the", "of"]
-             clean = " ".join([w for w in user_text.split() if w not in ignore])
-             item = fuzzy_fix_item_name(clean, db)
-             if item: text_response = f"🔍 Found '{item.name}': {item.quantity} {item.unit} in stock."
-             else: text_response = f"I couldn't find an item matching '{clean}'."
-
-        # 5. CANCELLATION ACTION
-        elif intent == "APPT_CANCEL_ACTION":
-            t = extract_time_object(user_text)
-            if not t: text_response = "What time? (e.g., 'Cancel 9pm')"
-            else:
-                req_dt = datetime.combine(now.date(), t)
+                target_dt = datetime.combine(now.date(), t)
                 appt = db.query(models.Appointment).filter(
                     models.Appointment.doctor_id == doctor.id,
                     models.Appointment.status != "cancelled",
-                    models.Appointment.start_time >= req_dt - timedelta(minutes=30),
-                    models.Appointment.start_time <= req_dt + timedelta(minutes=30)
+                    models.Appointment.start_time == target_dt
                 ).first()
+                
                 if appt:
-                    appt.status = "cancelled"
-                    inv = db.query(models.Invoice).filter(models.Invoice.appointment_id == appt.id, models.Invoice.status == "pending").first()
-                    if inv: inv.status = "cancelled"
+                    appt.status = "completed"
+                    # Auto-Pay Invoice
+                    inv = db.query(models.Invoice).filter(models.Invoice.appointment_id == appt.id).first()
+                    inv_msg = ""
+                    if inv:
+                        inv.status = "paid"
+                        inv_msg = "and Invoice marked as PAID"
                     db.commit()
-                    text_response = f"✅ Cancelled appointment at {appt.start_time.strftime('%I:%M %p')}."
-                else: text_response = f"No appointment found at {t.strftime('%I:%M %p')}."
+                    text_response = f"✅ Appointment completed {inv_msg}."
+                else: text_response = "No active appointment found at that time."
 
-        # 6. BASIC QUERIES
-        elif intent == "REV_TODAY":
-            val = db.query(func.sum(models.Invoice.amount)).filter(models.Invoice.status=="paid", func.date(models.Invoice.created_at)==now.date()).scalar() or 0
-            text_response = f"💰 Today's Revenue: Rs. {val}"
+        # === C. PATIENT HISTORY (Doctor Filtered) ===
+        elif intent == "PAT_HISTORY":
+            # Extract name roughly
+            words = user_text.split()
+            ignore = ["show", "history", "for", "me", "what", "did", "we", "do", "record", "of"]
+            name_query = " ".join([w for w in words if w not in ignore])
+            
+            p_user = db.query(models.User).filter(models.User.full_name.ilike(f"%{name_query}%"), models.User.role=="patient").first()
+            if not p_user: text_response = f"I couldn't find a patient named '{name_query}'."
+            else:
+                pat = db.query(models.Patient).filter(models.Patient.user_id == p_user.id).first()
+                # Filter by THIS doctor
+                history = db.query(models.Appointment).filter(
+                    models.Appointment.patient_id == pat.id,
+                    models.Appointment.doctor_id == doctor.id
+                ).order_by(models.Appointment.start_time.desc()).all()
+                
+                if not history: text_response = f"No history found for {p_user.full_name} with you."
+                else:
+                    text_response = f"📜 **History for {p_user.full_name}:**\n"
+                    for h in history:
+                        text_response += f"• {h.start_time.strftime('%Y-%m-%d')}: {h.treatment_type} ({h.status})\n"
 
-        elif intent == "APPT_WEEK":
-             d = now.date() + timedelta(days=7)
-             c = db.query(models.Appointment).filter(models.Appointment.start_time >= now, models.Appointment.start_time <= datetime.combine(d, datetime.min.time()), models.Appointment.status != 'cancelled').count()
-             text_response = f"📅 Weekly Outlook: {c} active appointments."
+        # === D. TREATMENTS & INVENTORY ===
+        elif intent == "TREAT_PRICE_UPDATE":
+            price = extract_money(user_text)
+            if not price: text_response = "Please specify the new price."
+            else:
+                # Guess treatment name
+                treats = db.query(models.Treatment).all()
+                t_names = [t.name for t in treats]
+                match = process.extractOne(user_text, t_names)
+                if match and match[1] > 50:
+                    t = db.query(models.Treatment).filter(models.Treatment.name == match[0]).first()
+                    old = t.cost
+                    t.cost = float(price)
+                    db.commit()
+                    text_response = f"✅ Updated {t.name} price: Rs. {old} -> Rs. {t.cost}"
+                else: text_response = "I couldn't match the treatment name."
 
-        elif intent == "REV_WEEK":
-             start = now - timedelta(days=7)
-             val = db.query(func.sum(models.Invoice.amount)).filter(models.Invoice.status=="paid", models.Invoice.created_at >= start).scalar() or 0
-             text_response = f"💰 Revenue (Last 7 Days): Rs. {val}"
-             
-        elif intent == "INV_CHECK_LOW":
-             low = db.query(models.InventoryItem).filter(models.InventoryItem.quantity < models.InventoryItem.min_threshold).all()
-             names = ", ".join([i.name for i in low]) if low else "None"
-             text_response = f"📦 Low Stock Items: {names}"
+        elif intent == "INV_COST_UPDATE":
+            cost = extract_money(user_text)
+            items = db.query(models.InventoryItem).all()
+            i_names = [i.name for i in items]
+            match = process.extractOne(user_text, i_names)
+            if match and match[1] > 50:
+                item = db.query(models.InventoryItem).filter(models.InventoryItem.name == match[0]).first()
+                item.buying_cost = float(cost)
+                db.commit()
+                text_response = f"✅ Set buying cost for {item.name} to Rs. {cost}."
+            else: text_response = "Item not found."
 
-        elif intent == "INV_USE_ACTION":
-            qty = extract_number(user_text)
-            text_response = f"Assuming you want to deduct {qty} items. Please specify the item name next time."
+        # === E. FINANCIALS (Profit & Expenses) ===
+        elif intent == "FIN_PROFIT":
+            # Revenue = Sum of Paid Invoices (This Month)
+            start = now.replace(day=1, hour=0, minute=0)
+            revenue = db.query(func.sum(models.Invoice.amount)).filter(
+                models.Invoice.status == "paid", models.Invoice.created_at >= start
+            ).scalar() or 0
+            
+            # Expenses = Total Value of Current Inventory (Simulated Expense)
+            # OR (Restock Quantity * Buying Cost) if we tracked history. 
+            # For now, using Total Inventory Valuation as "Capital Locked".
+            inventory_val = db.query(func.sum(models.InventoryItem.quantity * models.InventoryItem.buying_cost)).scalar() or 0
+            
+            # Profit (Simple View)
+            profit = revenue - inventory_val # Simplified
+            
+            text_response = f"💰 **Financial Snapshot (This Month):**\n• Revenue: Rs. {revenue}\n• Inventory Asset Value: Rs. {inventory_val}\n• **Net Flow:** Rs. {profit}"
+
+        elif intent == "FIN_INVOICES":
+            pending = db.query(models.Invoice).filter(models.Invoice.status == "pending").all()
+            if not pending: text_response = "✅ No pending invoices."
+            else:
+                text_response = f"📄 **Pending Invoices ({len(pending)}):**\n"
+                for i in pending:
+                     p_name = i.patient.user.full_name if i.patient else "Unknown"
+                     text_response += f"• #{i.id}: {p_name} - Rs. {i.amount}\n"
+        
+        # === F. DEFAULT SCHEDULE ===
+        elif intent == "APPT_TODAY":
+             appts = db.query(models.Appointment).filter(func.date(models.Appointment.start_time)==now.date()).all()
+             active = [a for a in appts if a.status != 'cancelled']
+             if not active: text_response = "🗓️ No active appointments today."
+             else:
+                 text_response = f"🗓️ **Today ({len(active)}):**\n"
+                 for a in active:
+                     icon = "✅" if a.status=="completed" else "⏳"
+                     p = a.patient.user.full_name if a.patient else "Unknown"
+                     text_response += f"{icon} {a.start_time.strftime('%I:%M %p')} - {p} ({a.status})\n"
 
         else:
-            text_response = brain_data.RESPONSE_TEMPLATES.get("FALLBACK")[0]
+             text_response = brain_data.RESPONSE_TEMPLATES.get("FALLBACK")[0]
 
     except Exception as e:
         logger.error(f"Error: {e}")

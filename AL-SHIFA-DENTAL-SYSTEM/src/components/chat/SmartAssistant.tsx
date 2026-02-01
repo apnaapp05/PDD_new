@@ -1,165 +1,138 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Send, Bot, User, Sparkles, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Card } from '@/components/ui/card';
-import { useRouter } from 'next/navigation';
+import { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Send, Bot, User, Trash2, Loader2 } from "lucide-react";
+import { api } from "@/lib/api";
 
 interface Message {
-  id: string;
-  role: 'user' | 'assistant';
+  role: "assistant" | "user";
   content: string;
-  timestamp: Date;
 }
 
 export default function SmartAssistant() {
-  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: 'Hello! I am your Dental AI Agent. Ask me about Revenue, Inventory, or Schedules.',
-      timestamp: new Date()
-    }
+    { role: "assistant", content: "Hello! I am your Clinical OS. I can manage Patients, Treatments, Inventory, and Finance. How can I help?" }
   ]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // 1. Ref for Auto-Scrolling
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // 2. Load History on Mount
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    const saved = localStorage.getItem("agent_history");
+    if (saved) {
+      try {
+        setMessages(JSON.parse(saved));
+      } catch (e) {
+        console.error("Failed to parse chat history");
+      }
+    }
+  }, []);
+
+  // 3. Auto-Scroll & Save History Effect
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messages.length > 1) {
+        localStorage.setItem("agent_history", JSON.stringify(messages));
     }
   }, [messages]);
-
-  // --- ACTION HANDLER ---
-  const performAction = (action: string | null, intent: string | null) => {
-    if (!action && !intent) return;
-
-    console.log("Agent Action:", action, "Intent:", intent);
-
-    // 1. Handle Navigation/Redirects from Backend
-    if (action && action.startsWith('redirect:')) {
-      const page = action.split(':')[1];
-      if (page === 'appointment_new') router.push('/doctor/schedule'); // Redirect to schedule
-      if (page === 'patient_new') router.push('/doctor/patients');
-    }
-
-    // 2. Handle Modals (Simulated via Redirects for now)
-    if (action && action.startsWith('opening_modal:')) {
-      const modalType = action.split(':')[1];
-      if (modalType === 'inventory_add') router.push('/doctor/inventory');
-      if (modalType === 'schedule_block') router.push('/doctor/schedule');
-      // Fixed the syntax error below:
-      alert(`Agent requested to open '${modalType}' modal. Navigating to page instead.`);
-    }
-
-    // 3. Handle Direct Intents (Legacy support)
-    if (intent === 'NAV_DASHBOARD') router.push('/doctor/dashboard');
-    if (intent === 'NAV_SETTINGS' || intent === 'NAV_PROFILE') router.push('/doctor/profile');
-    if (intent === 'NAV_LOGOUT') {
-        localStorage.removeItem('token');
-        router.push('/auth/doctor/login');
-    }
-  };
 
   const handleSend = async () => {
     if (!input.trim()) return;
 
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: input, timestamp: new Date() };
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
+    const userMsg: Message = { role: "user", content: input };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
     setIsLoading(true);
 
     try {
-      const res = await fetch('http://localhost:8000/api/agent/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg.content }),
-      });
-
-      const data = await res.json();
-
+      // Call the Agent API
+      const res = await api.post("/agent/chat", { message: userMsg.content });
       const botMsg: Message = { 
-        id: (Date.now() + 1).toString(), 
-        role: 'assistant', 
-        content: data.response || "I didn't understand that.", 
-        timestamp: new Date() 
+        role: "assistant", 
+        content: res.data.response || "I processed that request." 
       };
-      setMessages(prev => [...prev, botMsg]);
-
-      // EXECUTE ACTION
-      performAction(data.action, data.intent);
-
+      setMessages((prev) => [...prev, botMsg]);
     } catch (error) {
-      console.error(error);
-      setMessages(prev => [...prev, { 
-        id: Date.now().toString(), 
-        role: 'assistant', 
-        content: "Sorry, I lost connection to the server.", 
-        timestamp: new Date() 
-      }]);
+      console.error("Agent Error:", error);
+      setMessages((prev) => [...prev, { role: "assistant", content: "⚠️ System Error: Unable to reach the Agent brain." }]);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const clearHistory = () => {
+    setMessages([{ role: "assistant", content: "History cleared. Ready for new tasks." }]);
+    localStorage.removeItem("agent_history");
+  };
+
   return (
-    <Card className="flex flex-col h-full w-full border-none shadow-none bg-white">
-      <div className="p-4 border-b flex justify-between items-center bg-teal-50">
+    <Card className="flex flex-col h-[600px] w-full max-w-md mx-auto shadow-xl border-t-4 border-indigo-600">
+      <CardHeader className="bg-gray-50 border-b flex flex-row items-center justify-between py-3">
         <div className="flex items-center gap-2">
-          <div className="bg-teal-100 p-2 rounded-full">
-             <Bot className="w-5 h-5 text-teal-700" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-800">Dental Assistant</h3>
-            <p className="text-xs text-teal-600 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              Online
-            </p>
-          </div>
+            <div className="p-2 bg-indigo-100 rounded-full">
+                <Bot className="h-5 w-5 text-indigo-600" />
+            </div>
+            <div>
+                <CardTitle className="text-lg">Dental Agent</CardTitle>
+                <p className="text-xs text-green-600 font-medium flex items-center gap-1">
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    Online & Ready
+                </p>
+            </div>
         </div>
-      </div>
-
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        <div className="space-y-4">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              {msg.role === 'assistant' && (
-                <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center shrink-0">
-                  <Bot className="w-4 h-4 text-teal-700" />
-                </div>
-              )}
-              
+        <Button variant="ghost" size="icon" onClick={clearHistory} title="Clear History">
+            <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-500" />
+        </Button>
+      </CardHeader>
+      
+      <CardContent className="flex-1 p-0 overflow-hidden relative">
+        <ScrollArea className="h-full p-4 pr-5">
+          <div className="flex flex-col gap-4 pb-4">
+            {messages.map((msg, i) => (
               <div
-                className={`max-w-[80%] rounded-2xl p-3 text-sm ${
-                  msg.role === 'user'
-                    ? 'bg-teal-600 text-white rounded-tr-none'
-                    : 'bg-gray-100 text-gray-800 rounded-tl-none'
-                }`}
+                key={i}
+                className={lex w-full }
               >
-                {msg.content}
+                <div
+                  className={lex gap-3 max-w-[85%] }
+                >
+                  <div
+                    className={h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 }
+                  >
+                    {msg.role === "user" ? <User size={16} /> : <Bot size={16} />}
+                  </div>
+                  <div
+                    className={p-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm }
+                  >
+                    {msg.content}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
-          {isLoading && (
-            <div className="flex gap-2">
-               <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center">
-                  <Bot className="w-4 h-4 text-teal-700" />
+            ))}
+            {isLoading && (
+               <div className="flex w-full justify-start">
+                  <div className="flex gap-3 max-w-[85%]">
+                     <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                        <Bot size={16} className="text-gray-700"/>
+                     </div>
+                     <div className="p-3 bg-white border border-gray-100 rounded-2xl rounded-tl-none flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+                        <span className="text-xs text-gray-500">Thinking...</span>
+                     </div>
+                  </div>
                </div>
-               <div className="bg-gray-100 rounded-2xl p-3 rounded-tl-none flex items-center gap-1">
-                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-               </div>
-            </div>
-          )}
-        </div>
-      </ScrollArea>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        </ScrollArea>
+      </CardContent>
 
-      <div className="p-4 border-t bg-white">
+      <div className="p-4 bg-white border-t">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -170,16 +143,11 @@ export default function SmartAssistant() {
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your request..."
-            className="flex-1 focus-visible:ring-teal-500"
+            placeholder="Type a command (e.g., 'Block 3pm', 'Update Price')..."
+            className="flex-1 focus-visible:ring-indigo-500"
           />
-          <Button 
-            type="submit" 
-            size="icon"
-            disabled={isLoading || !input.trim()}
-            className="bg-teal-600 hover:bg-teal-700 text-white transition-all duration-200"
-          >
-            {isLoading ? <Sparkles className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          <Button type="submit" disabled={isLoading || !input.trim()} className="bg-indigo-600 hover:bg-indigo-700">
+            <Send className="h-4 w-4" />
           </Button>
         </form>
       </div>
