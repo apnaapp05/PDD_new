@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Search, Plus, ChevronRight, Loader2, User } from "lucide-react";
+import { Search, ChevronRight, Loader2, User } from "lucide-react"; // Removed Plus icon import
 import { DoctorAPI } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
@@ -40,12 +40,7 @@ export default function PatientList() {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-slate-900">My Patients</h1>
-        {/* UPDATED LINK */}
-        <Link href="/doctor/patients/new">
-          <Button variant="default" className="bg-blue-600 hover:bg-blue-700">
-            <Plus className="mr-2 h-4 w-4" /> Add New Patient
-          </Button>
-        </Link>
+        {/* Removed "Add New Patient" Link and Button from here */}
       </div>
 
       {/* Search Bar */}
