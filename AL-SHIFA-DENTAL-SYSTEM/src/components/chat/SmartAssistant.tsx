@@ -92,18 +92,28 @@ export default function SmartAssistant() {
             {messages.map((msg, i) => (
               <div
                 key={i}
-                className={lex w-full }
+                className={`flex w-full ${
+                  msg.role === "user" ? "justify-end" : "justify-start"
+                }`}
               >
                 <div
-                  className={lex gap-3 max-w-[85%] }
+                  className={`flex gap-3 max-w-[85%] ${
+                    msg.role === "user" ? "flex-row-reverse" : "flex-row"
+                  }`}
                 >
                   <div
-                    className={h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 }
+                    className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      msg.role === "user" ? "bg-indigo-600 text-white" : "bg-gray-200 text-gray-700"
+                    }`}
                   >
                     {msg.role === "user" ? <User size={16} /> : <Bot size={16} />}
                   </div>
                   <div
-                    className={p-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm }
+                    className={`p-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm ${
+                      msg.role === "user"
+                        ? "bg-indigo-600 text-white rounded-tr-none"
+                        : "bg-white border border-gray-100 text-gray-800 rounded-tl-none"
+                    }`}
                   >
                     {msg.content}
                   </div>
