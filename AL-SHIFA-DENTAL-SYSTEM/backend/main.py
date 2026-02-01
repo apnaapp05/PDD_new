@@ -514,7 +514,16 @@ def link_inv(tid: int, data: schemas.TreatmentLinkCreate, user: models.User = De
 @doctor_router.get("/inventory")
 def get_inv(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
-    return db.query(models.InventoryItem).filter(models.InventoryItem.hospital_id == doc.hospital_id).all()
+    items = db.query(models.InventoryItem).filter(models.InventoryItem.hospital_id == doc.hospital_id).all()
+    # Explicitly return fields to ensure frontend gets threshold
+    return [{
+        "id": i.id, 
+        "name": i.name, 
+        "quantity": i.quantity, 
+        "unit": i.unit, 
+        "min_threshold": i.min_threshold, 
+        "last_updated": i.last_updated.isoformat() if i.last_updated else None
+    } for i in items]
 
 @doctor_router.post("/inventory")
 def add_inv(item: schemas.InventoryItemCreate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -875,6 +884,52 @@ def request_location_change(data: schemas.LocationUpdate, user: models.User = De
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-app.include_router(auth_router); app.include_router(admin_router); app.include_router(org_router); app.include_router(doctor_router); app.include_router(public_router)
+app.include_router(auth_router); app.include_router(admin_router); app.include_router(org_router); 
+@doctor_router.get("/invoices/{id}")
+def get_invoice_detail(id: int, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # 1. Verify Doctor Role
+    if user.role != "doctor": raise HTTPException(403, "Not authorized")
+    doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+    
+    # 2. Find Invoice & Verify Ownership (Invoice -> Appointment -> Doctor)
+    inv = db.query(models.Invoice).join(models.Appointment).filter(
+        models.Invoice.id == id,
+        models.Appointment.doctor_id == doc.id
+    ).first()
+    
+    if not inv: raise HTTPException(404, "Invoice not found")
+    
+    # 3. Gather Details for Print View
+    appt = inv.appointment
+    patient = appt.patient
+    p_user = patient.user
+    hospital = doc.hospital
+    
+    # 4. Construct Response (Matches Frontend 'printInvoice' expectation)
+    return {
+        "id": inv.id,
+        "date": inv.created_at.strftime("%Y-%m-%d"),
+        "status": inv.status,
+        "amount": inv.amount,
+        "hospital": {
+            "name": hospital.name if hospital else "Clinic",
+            "address": hospital.address if hospital else "",
+            "phone": ""
+        },
+        "doctor": {
+            "name": user.full_name
+        },
+        "patient": {
+            "id": patient.id,
+            "name": p_user.full_name,
+            "age": patient.age,
+            "gender": patient.gender
+        },
+        "treatment": {
+            "name": appt.treatment_type,
+            "notes": appt.notes or ""
+        }
+    }
+app.include_router(doctor_router); app.include_router(public_router)
 app.include_router(agent_routes.router)
 os.makedirs("media", exist_ok=True); app.mount("/media", StaticFiles(directory="media"), name="media")

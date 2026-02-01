@@ -1,232 +1,253 @@
 "use client";
-
-import { useState, useEffect, useRef } from "react";
-import { DoctorAPI } from "@/lib/api";
+import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, Upload, Search, RefreshCcw, Plus, Minus, X, Loader2 } from "lucide-react";
+import { 
+  Plus, Search, AlertTriangle, CheckCircle2, Package, RefreshCcw, 
+  ArrowUpCircle, ArrowDownCircle, Upload, X 
+} from "lucide-react";
+import { DoctorAPI, api } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
-// Interface for type safety
 interface InventoryItem {
   id: number;
   name: string;
   quantity: number;
   unit: string;
-  threshold: number;
+  min_threshold: number;
+  last_updated: string;
 }
 
 export default function InventoryPage() {
-  // --- State ---
+  const router = useRouter();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [showModal, setShowModal] = useState(false);
   
-  // Form State
-  const [newItem, setNewItem] = useState({ name: "", quantity: 0, unit: "pcs", threshold: 10 });
-  
-  // Refs
+  // Modal State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newItem, setNewItem] = useState({ name: "", quantity: "", unit: "Pcs", min_threshold: "10" });
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- Data Loading ---
-  const load = async () => {
-    // Only show full loader on initial load, not during refreshes to keep UI snappy
-    if(items.length === 0) setLoading(true); 
+  const fetchInventory = async () => {
+    setLoading(true);
+    const token = localStorage.getItem("token");
+    if (!token) return router.push("/auth/doctor/login");
+
     try {
       const res = await DoctorAPI.getInventory();
       setItems(res.data);
-    } catch (e) { 
-      console.error("Failed to load inventory", e); 
-    } finally { 
-      setLoading(false); 
+    } catch (error) {
+      console.error("Failed to load inventory", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { fetchInventory(); }, []);
 
-  // --- Handlers ---
-
-  const handleUpload = async (e: any) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    const fd = new FormData();
-    fd.append("file", file);
-    
-    try {
-      await DoctorAPI.uploadInventory(fd);
-      alert("Inventory CSV Uploaded Successfully!");
-      load();
-    } catch (err) { 
-      alert("Failed. CSV Headers must be: Item Name, Quantity, Unit"); 
-    } finally { 
-      if(fileInputRef.current) fileInputRef.current.value = ""; 
-    }
-  };
+  // --- ACTIONS ---
 
   const handleAddItem = async () => {
-    if(!newItem.name) return;
+    if (!newItem.name || !newItem.quantity) return alert("Please fill details");
     try {
-        await DoctorAPI.addInventoryItem(newItem);
-        setShowModal(false);
-        setNewItem({ name: "", quantity: 0, unit: "pcs", threshold: 10 });
-        load();
-    } catch (e) {
-        alert("Failed to add item");
-    }
+        await api.post("/doctor/inventory", {
+            name: newItem.name,
+            quantity: parseInt(newItem.quantity),
+            unit: newItem.unit,
+            min_threshold: parseInt(newItem.min_threshold)
+        });
+        setShowAddModal(false);
+        setNewItem({ name: "", quantity: "", unit: "Pcs", min_threshold: "10" });
+        fetchInventory();
+    } catch(e) { alert("Failed to add item"); }
   };
 
-  const handleUpdateStock = async (item: InventoryItem, change: number) => {
-    const newQty = Math.max(0, item.quantity + change);
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    setUploading(true);
     
-    // 1. Optimistic UI Update (Update state immediately before API call)
-    setItems(currentItems => 
-        currentItems.map(i => i.id === item.id ? {...i, quantity: newQty} : i)
-    );
+    const formData = new FormData();
+    formData.append("file", file);
 
     try {
-        // 2. API Call
-        await DoctorAPI.updateStock(item.id, newQty);
-    } catch (e) {
-        // 3. Revert on failure
-        console.error("Stock update failed", e);
-        alert("Failed to update stock");
-        load(); // Re-fetch true data
+        await api.post("/doctor/inventory/upload", formData, {
+            headers: { "Content-Type": "multipart/form-data" }
+        });
+        alert("CSV Uploaded Successfully!");
+        fetchInventory();
+    } catch (error) {
+        alert("Upload failed. Ensure CSV has 'Item Name' and 'Quantity' columns.");
+    } finally {
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
-  // --- Filtering ---
-  const filtered = items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
+  const updateStock = async (id: number, currentQty: number, change: number) => {
+    const newQty = currentQty + change;
+    if (newQty < 0) return alert("Cannot reduce below 0");
+    try {
+        await DoctorAPI.updateStock(id, newQty);
+        fetchInventory();
+    } catch(e) { alert("Failed to update"); }
+  };
 
-  // --- Render ---
+  const filteredItems = items.filter(i => 
+    i.name.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500 relative">
       
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Package className="h-6 w-6 text-indigo-600"/> Inventory Management
-        </h1>
+      {/* HEADER ACTIONS */}
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+        <div>
+            <h1 className="text-2xl font-bold text-slate-900">Inventory Management</h1>
+            <p className="text-slate-500">Track supplies, low stock alerts, and procurement.</p>
+        </div>
         <div className="flex gap-2">
-          {/* Hidden File Input */}
-          <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleUpload} />
-          
-          <Button onClick={() => setShowModal(true)} className="bg-indigo-600">
-            <Plus className="h-4 w-4 mr-2"/> Add Item
-          </Button>
-          <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-            <Upload className="h-4 w-4 mr-2"/> CSV Import
-          </Button>
-          <Button onClick={load} variant="ghost" size="icon">
-            <RefreshCcw className="h-4 w-4"/>
-          </Button>
+            <Button variant="outline" onClick={fetchInventory}><RefreshCcw className="mr-2 h-4 w-4"/> Refresh</Button>
+            
+            <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept=".csv" 
+                onChange={handleFileUpload} 
+            />
+            <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                <Upload className="mr-2 h-4 w-4" /> {uploading ? "Uploading..." : "Import CSV"}
+            </Button>
+
+            <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={() => setShowAddModal(true)}>
+                <Plus className="mr-2 h-4 w-4" /> Add Item
+            </Button>
         </div>
       </div>
 
-      {/* Main Table Card */}
+      {/* SEARCH */}
       <Card>
-        <CardHeader className="pb-2">
-            <div className="relative max-w-sm">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+        <CardContent className="p-4">
+            <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                 <Input 
-                    placeholder="Search items..." 
-                    value={search} 
-                    onChange={e=>setSearch(e.target.value)} 
-                    className="pl-9"
+                    placeholder="Search supplies..." 
+                    className="pl-10"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
                 />
             </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-             <div className="flex justify-center p-8"><Loader2 className="animate-spin h-6 w-6 text-slate-400"/></div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 uppercase text-xs text-slate-500">
-                  <tr>
-                    <th className="p-3 rounded-tl-lg">Name</th>
-                    <th className="p-3">Qty</th>
-                    <th className="p-3">Actions</th>
-                    <th className="p-3">Unit</th>
-                    <th className="p-3 rounded-tr-lg">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filtered.length > 0 ? filtered.map(i => (
-                    <tr key={i.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-3 font-medium text-slate-700">{i.name}</td>
-                      <td className="p-3 font-mono font-bold text-lg text-slate-800">{i.quantity}</td>
-                      <td className="p-3">
-                        <div className="flex items-center gap-2">
-                            <Button size="sm" variant="outline" className="h-8 w-8 p-0 hover:border-red-300 hover:bg-red-50 hover:text-red-600" onClick={() => handleUpdateStock(i, -1)}>
-                                <Minus className="h-3 w-3" />
-                            </Button>
-                            <Button size="sm" variant="outline" className="h-8 w-8 p-0 bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100" onClick={() => handleUpdateStock(i, 1)}>
-                                <Plus className="h-3 w-3" />
-                            </Button>
-                        </div>
-                      </td>
-                      <td className="p-3 text-slate-500">{i.unit}</td>
-                      <td className="p-3">
-                        {i.quantity < i.threshold ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                Low Stock
-                            </span>
-                        ) : (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                OK
-                            </span>
-                        )}
-                      </td>
-                    </tr>
-                  )) : (
-                    <tr>
-                        <td colSpan={5} className="p-8 text-center text-slate-500">No items found.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
         </CardContent>
       </Card>
 
-      {/* Add Item Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-200">
-          <Card className="w-full max-w-sm bg-white shadow-xl">
-            <CardHeader className="flex flex-row justify-between items-center">
-                <CardTitle>Add New Stock</CardTitle>
-                <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-red-500"><X className="h-5 w-5"/></button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                  <label className="text-sm font-medium">Item Name</label>
-                  <Input placeholder="e.g. Latex Gloves" value={newItem.name} onChange={e=>setNewItem({...newItem, name: e.target.value})}/>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <label className="text-sm font-medium">Initial Qty</label>
-                    <Input type="number" placeholder="0" value={newItem.quantity} onChange={e=>setNewItem({...newItem, quantity: parseInt(e.target.value) || 0})}/>
-                </div>
-                <div className="space-y-2">
-                    <label className="text-sm font-medium">Unit</label>
-                    <Input placeholder="e.g. Box" value={newItem.unit} onChange={e=>setNewItem({...newItem, unit: e.target.value})}/>
-                </div>
-              </div>
-              <div className="space-y-2">
-                  <label className="text-sm font-medium">Low Stock Threshold</label>
-                  <Input type="number" placeholder="10" value={newItem.threshold} onChange={e=>setNewItem({...newItem, threshold: parseInt(e.target.value) || 0})}/>
-              </div>
-              <div className="flex justify-end gap-2 pt-4">
-                <Button variant="ghost" onClick={() => setShowModal(false)}>Cancel</Button>
-                <Button onClick={handleAddItem} className="bg-indigo-600">Save Item</Button>
-              </div>
-            </CardContent>
-          </Card>
+      {/* TABLE */}
+      <Card>
+        <CardHeader><CardTitle>Stock List</CardTitle></CardHeader>
+        <CardContent className="p-0">
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 text-slate-500 uppercase text-xs font-bold">
+                        <tr>
+                            <th className="p-4">Item Name</th>
+                            <th className="p-4">Quantity</th>
+                            <th className="p-4">Unit</th>
+                            <th className="p-4">Threshold</th>
+                            <th className="p-4">Status</th>
+                            <th className="p-4 text-center">Quick Action</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {loading ? (
+                            <tr><td colSpan={6} className="p-8 text-center text-slate-500">Loading inventory...</td></tr>
+                        ) : filteredItems.length === 0 ? (
+                            <tr><td colSpan={6} className="p-8 text-center text-slate-500">No items found.</td></tr>
+                        ) : (
+                            filteredItems.map((item) => {
+                                const isLow = item.quantity <= item.min_threshold;
+                                return (
+                                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="p-4 font-medium text-slate-900 flex items-center gap-3">
+                                            <div className="p-2 bg-slate-100 rounded-lg text-slate-500">
+                                                <Package className="h-4 w-4" />
+                                            </div>
+                                            {item.name}
+                                        </td>
+                                        <td className="p-4 font-bold text-slate-800 text-base">{item.quantity}</td>
+                                        <td className="p-4 text-slate-500">{item.unit}</td>
+                                        <td className="p-4 text-slate-400">Min: {item.min_threshold}</td>
+                                        <td className="p-4">
+                                            {isLow ? (
+                                                <span className="flex items-center gap-1.5 text-red-600 bg-red-50 px-2.5 py-1 rounded-full text-xs font-bold border border-red-100 w-fit">
+                                                    <AlertTriangle className="h-3 w-3" /> Low Stock
+                                                </span>
+                                            ) : (
+                                                <span className="flex items-center gap-1.5 text-green-600 bg-green-50 px-2.5 py-1 rounded-full text-xs font-bold border border-green-100 w-fit">
+                                                    <CheckCircle2 className="h-3 w-3" /> Healthy
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="p-4">
+                                            <div className="flex justify-center gap-1">
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:bg-green-50" onClick={() => updateStock(item.id, item.quantity, 1)}>
+                                                    <ArrowUpCircle className="h-5 w-5" />
+                                                </Button>
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500 hover:bg-red-50" onClick={() => updateStock(item.id, item.quantity, -1)}>
+                                                    <ArrowDownCircle className="h-5 w-5" />
+                                                </Button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </CardContent>
+      </Card>
+
+      {/* ADD ITEM MODAL OVERLAY */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <Card className="w-full max-w-md shadow-2xl relative animate-in fade-in zoom-in duration-200">
+                <Button variant="ghost" size="icon" className="absolute right-2 top-2 text-slate-400 hover:text-slate-600" onClick={() => setShowAddModal(false)}>
+                    <X className="h-4 w-4" />
+                </Button>
+                <CardHeader>
+                    <CardTitle>Add New Item</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div>
+                        <label className="text-sm font-medium text-slate-700">Item Name</label>
+                        <Input value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} placeholder="e.g. Surgical Gloves" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-sm font-medium text-slate-700">Quantity</label>
+                            <Input type="number" value={newItem.quantity} onChange={e => setNewItem({...newItem, quantity: e.target.value})} placeholder="0" />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-slate-700">Unit</label>
+                            <Input value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})} placeholder="Box" />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-sm font-medium text-slate-700">Low Stock Threshold</label>
+                        <Input type="number" value={newItem.min_threshold} onChange={e => setNewItem({...newItem, min_threshold: e.target.value})} placeholder="10" />
+                        <p className="text-xs text-slate-500 mt-1">Alert when stock drops below this.</p>
+                    </div>
+                    <Button className="w-full bg-indigo-600 hover:bg-indigo-700 mt-2" onClick={handleAddItem}>
+                        Save Item
+                    </Button>
+                </CardContent>
+            </Card>
         </div>
       )}
+
     </div>
   );
 }
