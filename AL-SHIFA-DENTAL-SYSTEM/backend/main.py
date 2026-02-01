@@ -152,8 +152,14 @@ def get_public_doctors(db: Session = Depends(get_db)):
 @public_router.get("/doctors/{doctor_id}/treatments")
 def get_doctor_treatments_public(doctor_id: int, db: Session = Depends(get_db)):
     doctor = db.query(models.Doctor).filter(models.Doctor.id == doctor_id).first()
-    if not doctor or not doctor.hospital_id: return []
-    treatments = db.query(models.Treatment).filter(models.Treatment.hospital_id == doctor.hospital_id).all()
+    if not doctor: return []
+    treatments = db.query(models.Treatment).filter(models.Treatment.doctor_id == doctor.id).all()
+    if not treatments and doctor.hospital_id:
+         treatments = db.query(models.Treatment).filter(
+             models.Treatment.hospital_id == doctor.hospital_id,
+             models.Treatment.doctor_id == None 
+         ).all()
+
     return [{"name": t.name, "cost": t.cost, "description": t.description} for t in treatments]
 
 @public_router.get("/doctors/{doctor_id}/settings")
@@ -402,7 +408,7 @@ async def upload_treatments(file: UploadFile = File(...), user: models.User = De
             if not name or not cost_str: continue
             try: cost = float(cost_str)
             except: continue
-            existing = db.query(models.Treatment).filter(models.Treatment.hospital_id == doctor.hospital_id, models.Treatment.name == name).first()
+            existing = db.query(models.Treatment).filter(models.Treatment.doctor_id == doctor.id, models.Treatment.name == name).first()
             if existing: existing.cost = cost
             else: db.add(models.Treatment(hospital_id=doctor.hospital_id, doctor_id=doctor.id, name=name, cost=cost, description=desc))
             count += 1
@@ -477,7 +483,7 @@ async def upload_inventory(
 @doctor_router.get("/treatments")
 def get_doc_treatments(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
-    treatments = db.query(models.Treatment).filter(models.Treatment.hospital_id == doc.hospital_id).all()
+    treatments = db.query(models.Treatment).filter(models.Treatment.doctor_id == doc.id).all()
     results = []
     for t in treatments:
         recipe = [{"item_name": l.item.name, "qty_required": l.quantity_required, "unit": l.item.unit} for l in t.required_items]
@@ -487,6 +493,10 @@ def get_doc_treatments(user: models.User = Depends(get_current_user), db: Sessio
 @doctor_router.post("/treatments")
 def create_treatment(data: schemas.TreatmentCreate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+    # Check if treatment exists for THIS doctor
+    existing = db.query(models.Treatment).filter(models.Treatment.doctor_id == doc.id, models.Treatment.name == data.name).first()
+    if existing: raise HTTPException(400, "Treatment already exists")
+    
     db.add(models.Treatment(hospital_id=doc.hospital_id, doctor_id=doc.id, name=data.name, cost=data.cost, description=data.description))
     db.commit(); return {"message": "Created"}
 
@@ -850,3 +860,4 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 app.include_router(auth_router); app.include_router(admin_router); app.include_router(org_router); app.include_router(doctor_router); app.include_router(public_router)
 app.include_router(agent_routes.router)
 os.makedirs("media", exist_ok=True); app.mount("/media", StaticFiles(directory="media"), name="media")
+
