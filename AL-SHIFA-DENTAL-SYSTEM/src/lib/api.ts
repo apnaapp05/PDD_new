@@ -82,3 +82,7 @@ export const OrganizationAPI = {
   removeDoctor: (id: number) => api.delete(`/organization/doctors/${id}`),
   requestLocationChange: (d: any) => api.post("/organization/location-request", d), // ADDED
 };
+
+export const AgentAPI = {
+  chat: (query: string) => api.post("/doctor/agent/chat", { query }),
+};
