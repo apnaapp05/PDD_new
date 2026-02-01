@@ -335,7 +335,7 @@ def get_doctor_dashboard(user: models.User = Depends(get_current_user), db: Sess
     
     analysis = {}
     analysis["queue"] = f"{len(appts)} patients today."
-    low_stock = db.query(models.InventoryItem).filter(models.InventoryItem.hospital_id == doc.hospital_id, models.InventoryItem.quantity < models.InventoryItem.threshold).count()
+    low_stock = db.query(models.InventoryItem).filter(models.InventoryItem.hospital_id == doc.hospital_id, models.InventoryItem.quantity < models.InventoryItem.min_threshold).count()
     analysis["inventory"] = f"{low_stock} items low." if low_stock else "Inventory OK."
     analysis["revenue"] = f"Rev: Rs. {revenue}"
 
@@ -505,7 +505,7 @@ def get_inv(user: models.User = Depends(get_current_user), db: Session = Depends
 @doctor_router.post("/inventory")
 def add_inv(item: schemas.InventoryItemCreate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
-    db.add(models.InventoryItem(hospital_id=doc.hospital_id, name=item.name, quantity=item.quantity, unit=item.unit, threshold=item.threshold))
+    db.add(models.InventoryItem(hospital_id=doc.hospital_id, name=item.name, quantity=item.quantity, unit=item.unit, min_threshold=item.threshold))
     db.commit(); return {"message": "Added"}
 
 @doctor_router.get("/schedule")
