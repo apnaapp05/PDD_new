@@ -1,3 +1,8 @@
+import os
+
+file_path = "src/components/chat/SmartAssistant.tsx"
+
+code = r'''
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -150,3 +155,9 @@ export default function SmartAssistant() {
     </Card>
   );
 }
+'''
+
+with open(file_path, "w", encoding="utf-8") as f:
+    f.write(code.strip())
+
+print(f"✅ Successfully wrote clean content to {file_path}")
