@@ -27,3 +27,53 @@
 2026-01-31 12:30:10,953 | ERROR | Failed to send email to pat2@test.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
 2026-01-31 12:30:33,983 | ERROR | Failed to send email to pat2@test.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
 2026-01-31 12:30:35,984 | ERROR | Notification Failed: RetryQueue exhausted after 3 attempts
+2026-02-01 20:05:03,887 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:05:03,887 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:05:03,887 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-01 20:05:03,887 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-01 20:05:03,887 | INFO | Scheduler started
+2026-02-01 20:11:42,288 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:11:42,289 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:11:42,289 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-01 20:11:42,289 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-01 20:11:42,289 | INFO | Scheduler started
+2026-02-01 20:23:08,883 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:23:08,883 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:23:08,883 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-01 20:23:08,883 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-01 20:23:08,883 | INFO | Scheduler started
+2026-02-01 20:37:51,801 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:37:51,801 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:37:51,801 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-01 20:37:51,802 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-01 20:37:51,802 | INFO | Scheduler started
+2026-02-01 20:43:57,556 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:43:57,556 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:43:57,556 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-01 20:43:57,556 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-01 20:43:57,556 | INFO | Scheduler started
+2026-02-01 20:45:36,052 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:45:36,052 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:45:36,053 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-01 20:45:36,053 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-01 20:45:36,053 | INFO | Scheduler started
+2026-02-01 20:48:07,903 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:48:07,903 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:48:07,903 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-01 20:48:07,903 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-01 20:48:07,903 | INFO | Scheduler started
+2026-02-01 20:51:29,967 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:51:29,967 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:51:29,967 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-01 20:51:29,967 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-01 20:51:29,967 | INFO | Scheduler started
+2026-02-01 20:55:32,354 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:55:32,354 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:55:32,355 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-01 20:55:32,355 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-01 20:55:32,355 | INFO | Scheduler started
+2026-02-01 20:56:45,066 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:56:45,067 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-01 20:56:45,067 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-01 20:56:45,067 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-01 20:56:45,067 | INFO | Scheduler started

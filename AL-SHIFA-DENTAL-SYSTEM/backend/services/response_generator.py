@@ -28,8 +28,8 @@ class ResponseGenerator:
         return {"text": text, "buttons": buttons}
 
     @staticmethod
-    def success_schedule(appts, date_str):
-        if not appts:
+    def success_schedule(appointments, date_str):
+        if not appointments:
             return {
                 "text": f"Your schedule is completely clear for {date_str}. Enjoy your free time!",
                 "buttons": [
@@ -38,15 +38,35 @@ class ResponseGenerator:
                 ]
             }
         
-        count = len(appts)
-        text = f"You have **{count} appointments** for {date_str}:\n" + "\n".join([f"- {a.start_time.strftime('%H:%M')}: {a.treatment_type}" for a in appts])
-        
+        # New Detailed Format
+        lines = [f"📅 **Schedule for {date_str}**\nYou have {len(appointments)} appointments:\n"]
+        first_patient_name = None
+
+        for appt in appointments:
+            time_str = appt.start_time.strftime("%H:%M")
+            if appt.status == "blocked":
+                reason = appt.notes if appt.notes else "Blocked"
+                lines.append(f"- 🕓 **{time_str}**: 🚫 Blocked ({reason})")
+            else:
+                p_name = "Unknown"
+                p_id = "?"
+                if appt.patient:
+                    p_id = appt.patient.id
+                    if appt.patient.user:
+                        p_name = appt.patient.user.full_name
+                
+                treatment = appt.treatment_type if appt.treatment_type else "Checkup"
+                if not first_patient_name and p_name != "Unknown": first_patient_name = p_name
+                
+                lines.append(f"- 🕓 **{time_str}**: 👤 **{p_name}** (ID: {p_id}) — {treatment}")
+
+        buttons = [{ "label": "📅 Go to Calendar", "action": "/doctor/schedule", "type": "navigate" }]
+        if first_patient_name:
+            buttons.insert(0, {"label": f"Start {first_patient_name}", "action": f"Start appointment for {first_patient_name}", "type": "chat"})
+
         return {
-            "text": text,
-            "buttons": [
-                { "label": "📅 Go to Calendar", "action": "/doctor/schedule", "type": "navigate" },
-                { "label": "Start First Appt", "action": f"Start appointment for {appts[0].patient.user.full_name if appts[0].patient else 'Unknown'}", "type": "chat" }
-            ]
+            "text": "\n".join(lines),
+            "buttons": buttons
         }
 
     @staticmethod
@@ -62,6 +82,17 @@ class ResponseGenerator:
         }
 
     @staticmethod
+    def success_inventory_alert(items):
+        if not items:
+            return {"text": "✅ Inventory is healthy. No low stock items found.", "buttons": []}
+        
+        msg = "⚠️ **Low Stock Alert**:\n" + "\n".join([f"- **{i.name}**: {i.quantity} {i.unit} (Min: {i.min_threshold})" for i in items])
+        return {
+            "text": msg,
+            "buttons": [{ "label": "📦 Restock Now", "action": "/doctor/inventory", "type": "navigate" }]
+        }
+
+    @staticmethod
     def error(msg):
         return {
             "text": f"⚠️ I couldn't do that. Reason: {msg}",
@@ -70,5 +101,4 @@ class ResponseGenerator:
 
     @staticmethod
     def simple(text):
-        """Helper for simple text responses"""
         return {"text": text, "buttons": []}

@@ -23,6 +23,13 @@ class InventoryService:
             InventoryItem.quantity <= InventoryItem.min_threshold
         ).all()
 
+    def get_all_items(self):
+        """Helper for AI to find items by name"""
+        # Assuming hospital_id linkage is correct via doctor_id or passed context
+        # If doctor_id is mapped to hospital, we query by that.
+        # Fallback to simple query if hospital_id logic varies.
+        return self.db.query(InventoryItem).all()
+
     def update_treatment_price(self, treatment_name: str, new_price: float):
         t = self.db.query(Treatment).filter(
             Treatment.doctor_id == self.doc_id, 
