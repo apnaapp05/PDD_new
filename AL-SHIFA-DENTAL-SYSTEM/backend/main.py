@@ -1,3 +1,4 @@
+from services.analytics_service import AnalyticsService
 import csv
 import codecs
 import logging
@@ -592,8 +593,22 @@ def update_schedule_settings(settings: dict, user: models.User = Depends(get_cur
 @doctor_router.get("/finance")
 def get_fin(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
-    invs = db.query(models.Invoice).join(models.Appointment).filter(models.Appointment.doctor_id == doc.id).all()
-    return {"total_revenue": sum(i.amount for i in invs if i.status=="paid"), "total_pending": sum(i.amount for i in invs if i.status=="pending"), "invoices": []}
+    if not doc: return {"total_revenue": 0, "total_pending": 0, "invoices": []}
+    
+    try:
+        # Use Shared Service to get list
+        service = AnalyticsService(db, doc.id)
+        data = service.get_financial_summary()
+        
+        # Map Service keys to Frontend keys
+        return {
+            "total_revenue": data["revenue"],
+            "total_pending": data["pending"],
+            "invoices": data["invoices"]
+        }
+    except Exception as e:
+        print(f"Finance Error: {e}")
+        return {"total_revenue": 0, "total_pending": 0, "invoices": []}
 
 @doctor_router.get("/patients")
 def get_doc_patients(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
