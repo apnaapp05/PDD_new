@@ -13,12 +13,13 @@ def fix_database():
 
     print("🔧 Checking database schema...")
 
-    # 1. Fix Users Table (Add phone)
+    # 1. Fix Users Table (Add is_email_verified ONLY)
     try:
-        cursor.execute("SELECT phone FROM users LIMIT 1")
+        cursor.execute("SELECT is_email_verified FROM users LIMIT 1")
     except sqlite3.OperationalError:
-        print("   -> Adding 'phone' column to users table...")
-        cursor.execute("ALTER TABLE users ADD COLUMN phone VARCHAR")
+        print("   -> Adding 'is_email_verified' column to users table...")
+        # Default True so you can login immediately
+        cursor.execute("ALTER TABLE users ADD COLUMN is_email_verified BOOLEAN DEFAULT 1")
     
     # 2. Fix Inventory Table (Add buying_cost)
     try:
@@ -29,7 +30,7 @@ def fix_database():
 
     conn.commit()
     conn.close()
-    print("✅ Database successfully upgraded.")
+    print("✅ Database successfully fixed.")
 
 if __name__ == "__main__":
     fix_database()

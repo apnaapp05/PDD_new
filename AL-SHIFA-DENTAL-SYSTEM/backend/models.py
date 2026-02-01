@@ -10,8 +10,11 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     password_hash = Column(String)
     role = Column(String)
-    phone = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
+    
+    # ✅ Added this (Required for Login), REMOVED phone
+    is_email_verified = Column(Boolean, default=True) 
+    
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class Organization(Base):
@@ -55,7 +58,8 @@ class InventoryItem(Base):
     quantity = Column(Integer)
     unit = Column(String)
     min_threshold = Column(Integer)
-    buying_cost = Column(Float, default=0.0) # NEW: For expense tracking
+    # ✅ Added buying_cost for Expenses
+    buying_cost = Column(Float, default=0.0)
 
 class Appointment(Base):
     __tablename__ = "appointments"
