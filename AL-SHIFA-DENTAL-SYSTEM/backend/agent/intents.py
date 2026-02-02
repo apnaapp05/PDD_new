@@ -3,44 +3,40 @@
 INTENT_TRAINING_DATA = {
     "dashboard_stats": [
         "dashboard", "home", "stats", "overview", "how is my day", "daily summary", 
-        "show me the dashboard", "quick look", "status report", "morning briefing"
+        "show me the dashboard", "quick look", "status report"
     ],
     "schedule_view": [
-        "schedule", "calendar", "appointments", "shedule", "agenda", "meetings", 
-        "what is on for today", "show my day", "who is coming", "patient list", "time table"
+        "schedule", "calendar", "appointments", "agenda", "meetings", 
+        "what is on for today", "show my day", "patient list"
     ],
     "schedule_block": [
-        "block", "reserve time", "hold slot", "busy", "close off", "i am unavailable", 
-        "block the calendar", "stop bookings"
+        "block", "reserve time", "hold slot", "busy", "close off", "i am unavailable"
     ],
     "inventory_check": [
-        "inventory", "stock", "supplies", "gloves", "masks", "materials", "how many", 
-        "check levels", "low stock", "available items"
+        "inventory", "stock", "supplies", "gloves", "masks", "check levels", "low stock"
     ],
     "inventory_add": [
-        "add stock", "update inventory", "received shipment", "buy", "order", "increase quantity", 
-        "got more supplies", "restock"
+        "add stock", "update inventory", "received shipment", "increase quantity", "restock"
+    ],
+    "inventory_create": [
+        "new item", "create item", "add new product", "register stock", "new supply", "define new item"
     ],
     "finance_view": [
-        "finance", "revenue", "money", "income", "profit", "earnings", "billings", 
-        "how much did i make", "financial report", "sales", "invoices"
+        "finance", "revenue", "money", "income", "profit", "earnings", "billings"
     ],
     "patient_search": [
-        "search patient", "who is", "patient history", "find patient", "medical records", 
-        "lookup", "details for", "profile"
+        "search patient", "who is", "patient history", "find patient", "medical records", "lookup"
     ],
     "treatment_list": [
-        "treatments", "procedures", "services", "price list", "cost of", "what do we offer"
+        "price list", "cost of", "how much is", "list procedures", "show treatments"
     ],
-    "clinical_record": [
-        "add record", "write note", "diagnosis", "prescription", "clinical note", "add visit details"
+    "treatment_update": [
+        "update price", "change cost", "set price", "modify treatment", "change fee", "update rate"
     ],
     "clinical_complete": [
         "complete appointment", "finish", "done with", "finalize", "bill patient", "close visit"
-    ]
-,
-    "settings_availability": [
-        "update availability", "change working hours", "set clinic time", "change start time", 
-        "change end time", "my hours are", "clinic opens at", "update schedule time"
     ],
+    "settings_availability": [
+        "update availability", "change working hours", "set clinic time", "change start time"
+    ]
 }

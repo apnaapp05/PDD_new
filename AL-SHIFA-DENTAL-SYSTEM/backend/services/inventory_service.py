@@ -1,41 +1,37 @@
 from sqlalchemy.orm import Session
-from models import InventoryItem, Treatment
+from models import InventoryItem
 
 class InventoryService:
     def __init__(self, db: Session, doctor_id: int):
         self.db = db
         self.doc_id = doctor_id
 
-    def update_stock(self, item_name: str, qty_change: int):
-        item = self.db.query(InventoryItem).filter(InventoryItem.name.ilike(f"%{item_name}%")).first()
-        if not item: raise ValueError(f"Item '{item_name}' not found.")
-        
-        if item.quantity + qty_change < 0:
-            raise ValueError(f"Cannot deduct {abs(qty_change)}. Only {item.quantity} in stock.")
-            
-        item.quantity += qty_change
-        self.db.commit()
-        return item
-
     def get_low_stock(self):
-        """REAL LOGIC: Returns items <= threshold"""
-        return self.db.query(InventoryItem).filter(
-            InventoryItem.quantity <= InventoryItem.min_threshold
-        ).all()
+        return self.db.query(InventoryItem).filter(InventoryItem.quantity <= InventoryItem.min_threshold).all()
 
     def get_all_items(self):
-        """Helper for AI to find items by name"""
-        # Assuming hospital_id linkage is correct via doctor_id or passed context
-        # If doctor_id is mapped to hospital, we query by that.
-        # Fallback to simple query if hospital_id logic varies.
         return self.db.query(InventoryItem).all()
 
-    def update_treatment_price(self, treatment_name: str, new_price: float):
-        t = self.db.query(Treatment).filter(
-            Treatment.doctor_id == self.doc_id, 
-            Treatment.name.ilike(f"%{treatment_name}%")
-        ).first()
-        if not t: raise ValueError(f"Treatment '{treatment_name}' not found.")
-        t.cost = new_price
+    def update_stock(self, item_name: str, qty: int):
+        item = self.db.query(InventoryItem).filter(InventoryItem.name.ilike(f"%{item_name}%")).first()
+        if not item: return None
+        item.quantity += qty
         self.db.commit()
-        return t
+        self.db.refresh(item)
+        return item
+
+    def create_item(self, name: str, quantity: int, threshold: int = 10):
+        """Creates a brand new inventory item."""
+        # Check if exists
+        exists = self.db.query(InventoryItem).filter(InventoryItem.name.ilike(name)).first()
+        if exists: return None
+        
+        new_item = InventoryItem(
+            name=name,
+            quantity=quantity,
+            min_threshold=threshold,
+            doctor_id=self.doc_id
+        )
+        self.db.add(new_item)
+        self.db.commit()
+        return new_item

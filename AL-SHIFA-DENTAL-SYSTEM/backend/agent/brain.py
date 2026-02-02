@@ -1,217 +1,231 @@
-from services.settings_service import SettingsService
-from datetime import datetime
-from agent.analyst import AnalystEngine
 from sqlalchemy.orm import Session
 import pandas as pd
-import random
+from rapidfuzz import process, fuzz
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from datetime import datetime
+import re
 
-# Internal Modules
+# Internal Services
 from services.appointment_service import AppointmentService
 from services.analytics_service import AnalyticsService
 from services.inventory_service import InventoryService
+from services.treatment_service import TreatmentService
 from services.patient_service import PatientService
 from services.clinical_service import ClinicalService
+from services.settings_service import SettingsService
+from agent.analyst import AnalystEngine
 from services.response_generator import ResponseGenerator
 from utils.nlp_parser import DateParser
 from utils.smart_parser import SmartParser
 from agent.intents import INTENT_TRAINING_DATA
-from agent.scheduler import proactive_system
 
 class ClinicAgent:
     def __init__(self, db: Session, doctor_id: int):
         self.db = db
         self.doc_id = doctor_id
         
-        # Tools
+        # --- 1. LOAD TOOLS (Services) ---
         self.appt = AppointmentService(db, doctor_id)
         self.fin = AnalyticsService(db, doctor_id)
         self.inv = InventoryService(db, doctor_id)
         self.pat = PatientService(db, doctor_id)
+        self.treat = TreatmentService(db, doctor_id)
         self.clinical = ClinicalService(db, doctor_id)
         self.settings = SettingsService(db, doctor_id)
         self.analyst = AnalystEngine(db, doctor_id)
         
-        # AI Components
+        # --- 2. AI MODELS (The Artificial LLM) ---
         self.parser = SmartParser()
-        self.vectorizer = TfidfVectorizer(analyzer='char_wb', ngram_range=(2, 4)) # Char n-grams handle typos!
-        self.intents_map = []
+        self.vectorizer = TfidfVectorizer(analyzer='char_wb', ngram_range=(2, 4))
+        self.intent_keys = []
         self._train_intent_model()
         
-        # Context
-        self.context = {"last_patient": None}
-
-        # Ensure Scheduler is running
-        # proactive_system.start() # Disabled for Stability
+        # --- 3. CONTEXT MEMORY (For Multi-Turn Checklists) ---
+        self.context = {
+            "intent": None,
+            "slots": {}, 
+            "last_patient": None
+        }
 
     def _train_intent_model(self):
-        """Builds the 'Brain' by vectorizing the intent training data"""
+        """Trains the local intent classifier on startup"""
         corpus = []
-        self.intent_keys = []
-        
         for intent, phrases in INTENT_TRAINING_DATA.items():
             for p in phrases:
                 corpus.append(p)
                 self.intent_keys.append(intent)
-        
-        self.tfidf_matrix = self.vectorizer.fit_transform(corpus)
+        if corpus:
+            self.tfidf_matrix = self.vectorizer.fit_transform(corpus)
 
     def predict_intent(self, query):
-        """Uses Cosine Similarity to find the best matching intent"""
+        """Uses Cosine Similarity to find the best intent match"""
+        if not self.intent_keys: return None
         query_vec = self.vectorizer.transform([query])
         similarities = cosine_similarity(query_vec, self.tfidf_matrix)
-        
         best_idx = similarities.argmax()
-        best_score = similarities[0, best_idx]
-        
-        if best_score < 0.35: # Threshold for "I don't know"
-            return None
+        if similarities[0, best_idx] < 0.35: return None
         return self.intent_keys[best_idx]
 
     def process(self, query: str):
         q = query.lower().strip()
         
-        # 1. Check for Proactive Alerts
-        alerts = proactive_system.get_pending_alerts()
-        alert_prefix = ("\n\n".join(alerts) + "\n\n") if alerts else ""
-
-                # 1.5. ANALYST CHECK (Natural Language Math)
+        # --- A. ANALYST ENGINE (Pandas Logic) ---
         if self.analyst.is_analysis_query(q):
-            result = self.analyst.analyze(q)
-            return ResponseGenerator.simple(f"📊 **Analysis:**\n{result}")
+            return ResponseGenerator.simple(f"📊 **Analysis:**\n{self.analyst.analyze(q)}")
 
-        # 2. Predict Intent
-        intent = self.predict_intent(q)
+        # --- B. INTENT DETECTION ---
+        # If we are in a checklist flow (e.g. asking for price), stick to that intent
+        if self.context["intent"]:
+            intent = self.context["intent"]
+        else:
+            intent = self.predict_intent(q)
+
         if not intent:
-            return ResponseGenerator.simple(f"{alert_prefix}I'm not sure what you mean. Try 'Show Schedule' or 'Check Revenue'.")
+            return ResponseGenerator.simple("I'm not sure I understand. Try 'Dashboard', 'Schedule', or 'Update Price'.")
 
         try:
-            # --- DASHBOARD & ANALYTICS ---
+            # =======================================================
+            # 1. NEW FEATURES (Treatment & Inventory Creation)
+            # =======================================================
+            
+            # --- TREATMENT UPDATE ---
+            if intent == "treatment_update":
+                self.context["intent"] = "treatment_update"
+                slots = self.context["slots"]
+                
+                # Check Treatment Name
+                if not slots.get("name"):
+                    all_treats = self.treat.get_all_treatments()
+                    names = [t.name for t in all_treats]
+                    match = process.extractOne(q, names, scorer=fuzz.token_set_ratio)
+                    
+                    if match and match[1] > 65 and "update" not in q:
+                        slots["name"] = match[0]
+                    else:
+                        return {
+                            "text": "Which treatment needs a price update?",
+                            "buttons": [{"label": n, "action": n, "type": "chat"} for n in names[:5]]
+                        }
+
+                # Check Price
+                if not slots.get("price"):
+                    nums = re.findall(r'\d+', q)
+                    if nums:
+                        slots["price"] = float(nums[0])
+                    else:
+                        return ResponseGenerator.simple(f"What is the new price for **{slots['name']}**?")
+
+                # Execute
+                updated = self.treat.update_price(slots["name"], slots["price"])
+                self.context["intent"] = None
+                self.context["slots"] = {}
+                if updated:
+                    return ResponseGenerator.simple(f"✅ Updated **{updated.name}** to **Rs. {updated.cost}**.")
+                return ResponseGenerator.error("Could not find that treatment.")
+
+            # --- NEW INVENTORY ITEM ---
+            if intent == "inventory_create":
+                self.context["intent"] = "inventory_create"
+                slots = self.context["slots"]
+
+                # Check Name
+                if not slots.get("name"):
+                    clean = q.replace("create item", "").replace("new item", "").strip()
+                    if len(clean) > 2 and clean != "new item":
+                        slots["name"] = clean
+                    else:
+                        return ResponseGenerator.simple("What is the name of the new item?")
+
+                # Check Quantity
+                if not slots.get("quantity"):
+                    nums = re.findall(r'\d+', q)
+                    if nums:
+                        slots["quantity"] = int(nums[0])
+                    else:
+                        return ResponseGenerator.simple(f"How much initial stock for **{slots['name']}**?")
+
+                # Execute
+                created = self.inv.create_item(slots["name"], slots["quantity"])
+                self.context["intent"] = None
+                self.context["slots"] = {}
+                if created:
+                    return ResponseGenerator.simple(f"✅ Created **{created.name}** with **{created.quantity}** units.")
+                return ResponseGenerator.error(f"Item **{slots['name']}** already exists.")
+
+            # =======================================================
+            # 2. EXISTING FEATURES (Preserved from Manual/Old Logic)
+            # =======================================================
+
+            # --- DASHBOARD ---
             if intent == "dashboard_stats":
-                # Use Pandas for a quick summary (Simulated)
                 fin_data = self.fin.get_financial_summary("today")
                 inv_items = self.inv.get_low_stock()
-                # Determine Tone
-                revenue_mood = "Good start!" if fin_data['revenue'] > 0 else "Quiet day so far."
-                return ResponseGenerator.simple(
-                    f"{alert_prefix}📊 **Dashboard Summary**\n"
-                    f"- **Revenue:** Rs. {fin_data['revenue']} ({revenue_mood})\n"
-                    f"- **Alerts:** {len(inv_items)} low stock items.\n"
-                    f"Ready for your next command."
-                )
+                return ResponseGenerator.simple(f"📊 **Overview:**\nRevenue Today: {fin_data['revenue']}\nLow Stock Alerts: {len(inv_items)}")
 
-            # --- FINANCE ---
-            if intent == "finance_view":
-                period = "week" if "week" in q else "today"
-                data = self.fin.get_financial_summary(period)
-                # Pandas Analysis could go here (e.g., comparing to last week)
-                return ResponseGenerator.success_finance(data['revenue'], data['pending'])
-
-            # --- SCHEDULE ---
+            # --- SCHEDULE VIEW ---
             if intent == "schedule_view":
                 date_str, _ = DateParser.parse_datetime(q)
                 appts = self.appt.get_schedule(date_str)
-                # Smart Summary
-                if not appts: return ResponseGenerator.simple(f"{alert_prefix}📅 Your schedule is clear for {date_str}.")
+                if not appts: return ResponseGenerator.simple(f"📅 No appointments found for {date_str}.")
                 return ResponseGenerator.success_schedule(appts, date_str)
 
+            # --- SCHEDULE BLOCKING ---
             if intent == "schedule_block":
                 date_str, time_str = DateParser.parse_datetime(q)
-                if not time_str: return ResponseGenerator.error("Please specify a time to block.")
-                self.appt.block_slot(date_str, time_str, "Agent Block")
-                return ResponseGenerator.success_block(date_str, time_str)
+                if not time_str: return ResponseGenerator.simple("Please specify a time to block.")
+                self.appt.block_slot(date_str, time_str, "Doctor Blocked")
+                return ResponseGenerator.simple(f"🚫 Blocked slot on {date_str} at {time_str}.")
 
-            # --- INVENTORY ---
+            # --- INVENTORY CHECK ---
             if intent == "inventory_check":
-                items = self.inv.get_low_stock()
-                return ResponseGenerator.success_inventory_alert(items)
+                low_stock = self.inv.get_low_stock()
+                if not low_stock: return ResponseGenerator.simple("✅ Inventory looks good. No low stock items.")
+                items = ", ".join([i.name for i in low_stock])
+                return ResponseGenerator.simple(f"⚠️ **Low Stock:** {items}")
 
+            # --- INVENTORY ADD STOCK ---
             if intent == "inventory_add":
-                entities = self.parser.extract_entities(q)
-                qty = int(entities["QUANTITY"]) if entities["QUANTITY"] else 0
-                if qty == 0: return ResponseGenerator.error("I need a quantity (e.g., 'Add 10 gloves').")
+                # Simple one-shot extraction for adding stock
+                # Assumes "Add 50 masks" format
+                nums = re.findall(r'\d+', q)
+                qty = int(nums[0]) if nums else 10
                 
-                # Fuzzy match item name
-                all_items = [i.name for i in self.inv.get_all_items()] # Need to implement get_all_items helper or direct DB
-                # For now, simplistic extraction
-                item_name = self.parser.fuzzy_extract_item(q, all_items) if all_items else "Unknown"
+                all_items = self.inv.get_all_items()
+                names = [i.name for i in all_items]
+                match = process.extractOne(q, names, scorer=fuzz.partial_ratio)
                 
-                # If fuzzy fail, fallback to raw string stripping
-                if not item_name:
-                     clean_q = q
-                     for k in ["add", "stock", str(qty)]: clean_q = clean_q.replace(k, "")
-                     item_name = clean_q.strip()
+                if match and match[1] > 60:
+                    updated = self.inv.update_stock(match[0], qty)
+                    return ResponseGenerator.simple(f"✅ Added {qty} to **{match[0]}**. New Total: {updated.quantity}")
+                return ResponseGenerator.simple("Which item should I add stock to?")
 
-                updated = self.inv.update_stock(item_name, qty)
-                return ResponseGenerator.simple(f"✅ Added {qty} to **{updated.name}**. New Qty: {updated.quantity}")
+            # --- FINANCE VIEW ---
+            if intent == "finance_view":
+                period = "week" if "week" in q else "today"
+                data = self.fin.get_financial_summary(period)
+                return ResponseGenerator.simple(f"💰 **Financials ({period}):**\nRevenue: {data['revenue']}\nPending: {data['pending']}")
 
-            # --- PATIENTS ---
+            # --- PATIENT SEARCH ---
             if intent == "patient_search":
-                # SpaCy Entity Extraction
-                entities = self.parser.extract_entities(q)
-                name = entities["PERSON"]
-                if not name: name = self._manual_extract_name(q, ["who is", "history", "search"])
-                
-                p = self.pat.find_patient(name)
-                if not p: return ResponseGenerator.error("Patient not found.")
-                self.context["last_patient"] = p.user.full_name
-                
-                return {
-                    "text": f"👤 **{p.user.full_name}**\nFound in records. What would you like to do?",
-                    "buttons": [
-                        { "label": "Start Visit", "action": f"Start appointment for {p.user.full_name}", "type": "chat" },
-                        { "label": "View History", "action": f"/doctor/patients/{p.id}", "type": "navigate" }
-                    ]
-                }
+                clean = q.replace("search patient", "").replace("who is", "").strip()
+                p = self.pat.find_patient(clean)
+                if p:
+                    self.context["last_patient"] = p.user.full_name
+                    return ResponseGenerator.simple(f"👤 **Found Patient:**\nName: {p.user.full_name}\nPhone: {p.user.phone_number}\nLast Visit: {p.last_visit_date or 'N/A'}")
+                return ResponseGenerator.error("Patient not found.")
 
-            # --- CLINICAL ---
-                        # --- SETTINGS: AVAILABILITY ---
+            # --- SETTINGS (Availability) ---
             if intent == "settings_availability":
-                # 1. Parse Times using Regex or split
-                import re
-                # Regex to find time patterns like '11:00 AM', '9 pm', '21:00'
-                times = re.findall(r'(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)', q)
-                
-                if len(times) < 2:
-                    return ResponseGenerator.error("I need both a Start Time and End Time (e.g., 'Update availability from 9 AM to 5 PM').")
-                
-                def parse_time(t_str):
-                    t_str = t_str.strip().upper()
-                    formats = ["%I %p", "%I:%M %p", "%I%p", "%H:%M", "%H"]
-                    for fmt in formats:
-                        try:
-                            return datetime.strptime(t_str, fmt).strftime("%H:%M")
-                        except ValueError:
-                            continue
-                    return None
+                # Assuming format "from 10:00 to 18:00"
+                times = re.findall(r'\d{1,2}:\d{2}', q)
+                if len(times) >= 2:
+                    self.settings.update_working_hours(times[0], times[1])
+                    return ResponseGenerator.simple(f"⏰ Availability updated: {times[0]} - {times[1]}")
+                return ResponseGenerator.simple("Please specify start and end times (e.g., 09:00 to 17:00).")
 
-                start_str = parse_time(times[0])
-                end_str = parse_time(times[1])
-                
-                if not start_str or not end_str:
-                     return ResponseGenerator.error(f"Could not understand the times '{times[0]}' or '{times[1]}'. Try '11:00 AM'.")
-
-                self.settings.update_working_hours(start_str, end_str)
-                return ResponseGenerator.simple(f"✅ **Availability Updated**\nNew Hours: **{start_str}** to **{end_str}**.\nThis is now saved in your profile.")
-
-            if intent == "clinical_complete":
-                name = self.context["last_patient"]
-                if not name: return ResponseGenerator.error("Who are we finishing with?")
-                res = self.clinical.complete_appointment(patient_name=name)
-                return ResponseGenerator.simple(res)
+            return ResponseGenerator.simple(f"I understood '{intent}' but need more details to proceed.")
 
         except Exception as e:
-            return ResponseGenerator.error(f"Brain Freeze: {str(e)}")
-
-        return ResponseGenerator.simple(f"{alert_prefix}Command recognized ({intent}) but logic is pending.")
-
-    def _manual_extract_name(self, query, triggers):
-        """Fallback if SpaCy misses the name"""
-        clean = query
-        for t in triggers: clean = clean.replace(t, "")
-        return clean.strip()
-
-
-
-
+            self.context["intent"] = None
+            return ResponseGenerator.error(f"Error: {str(e)}")
