@@ -82,3 +82,8 @@
 2026-02-01 21:01:51,848 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
 2026-02-01 21:01:51,848 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
 2026-02-01 21:01:51,848 | INFO | Scheduler started
+2026-02-02 09:17:42,090 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-02 09:17:42,091 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-02 09:17:42,091 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-02 09:17:42,091 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-02 09:17:42,091 | INFO | Scheduler started

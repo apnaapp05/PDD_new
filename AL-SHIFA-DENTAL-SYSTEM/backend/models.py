@@ -144,3 +144,4 @@ class PatientFile(Base):
     filename = Column(String)
     filepath = Column(String)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
+
