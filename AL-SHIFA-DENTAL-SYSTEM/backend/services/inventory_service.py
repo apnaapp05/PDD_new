@@ -17,21 +17,19 @@ class InventoryService:
         if not item: return None
         item.quantity += qty
         self.db.commit()
-        self.db.refresh(item)
         return item
 
     def create_item(self, name: str, quantity: int, threshold: int = 10):
-        """Creates a brand new inventory item."""
-        # Check if exists
         exists = self.db.query(InventoryItem).filter(InventoryItem.name.ilike(name)).first()
         if exists: return None
-        
-        new_item = InventoryItem(
-            name=name,
-            quantity=quantity,
-            min_threshold=threshold,
-            doctor_id=self.doc_id
-        )
+        new_item = InventoryItem(name=name, quantity=quantity, min_threshold=threshold, doctor_id=self.doc_id)
         self.db.add(new_item)
         self.db.commit()
         return new_item
+
+    def set_threshold(self, name: str, threshold: int):
+        item = self.db.query(InventoryItem).filter(InventoryItem.name.ilike(f"%{name}%")).first()
+        if not item: return None
+        item.min_threshold = threshold
+        self.db.commit()
+        return item
