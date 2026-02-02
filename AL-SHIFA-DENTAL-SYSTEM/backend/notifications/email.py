@@ -23,11 +23,23 @@ class EmailAdapter:
                 part2 = MIMEText(html_body, 'html')
                 msg.attach(part2)
 
-            # 3. Connect via SSL (Gmail Port 465)
+            # 3. Connect to SMTP Server
             logger.info(f"Connecting to SMTP: {config.EMAIL_HOST}:{config.EMAIL_PORT}")
-            with smtplib.SMTP_SSL(config.EMAIL_HOST, config.EMAIL_PORT) as server:
-                server.login(config.EMAIL_USER, config.EMAIL_PASSWORD)
-                server.sendmail(config.EMAIL_USER, to_email, msg.as_string())
+            
+            # LOGIC FIX: Handle both Port 587 (TLS) and Port 465 (SSL)
+            if config.EMAIL_PORT == 587:
+                # Use standard SMTP with STARTTLS (The method that worked for you)
+                with smtplib.SMTP(config.EMAIL_HOST, config.EMAIL_PORT) as server:
+                    server.ehlo()
+                    server.starttls()  # Upgrade connection to secure
+                    server.ehlo()
+                    server.login(config.EMAIL_USER, config.EMAIL_PASSWORD)
+                    server.sendmail(config.EMAIL_USER, to_email, msg.as_string())
+            else:
+                # Use implicit SSL (Legacy/Port 465)
+                with smtplib.SMTP_SSL(config.EMAIL_HOST, config.EMAIL_PORT) as server:
+                    server.login(config.EMAIL_USER, config.EMAIL_PASSWORD)
+                    server.sendmail(config.EMAIL_USER, to_email, msg.as_string())
             
             logger.info(f"✅ Email sent successfully to {to_email}")
             return {"status": "sent"}

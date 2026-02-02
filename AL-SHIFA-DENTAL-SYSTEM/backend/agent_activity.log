@@ -87,3 +87,11 @@
 2026-02-02 09:17:42,091 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
 2026-02-02 09:17:42,091 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
 2026-02-02 09:17:42,091 | INFO | Scheduler started
+2026-02-02 12:29:19,201 | INFO | Connecting to SMTP: smtp.gmail.com:465
+2026-02-02 12:29:40,311 | ERROR | \u274c Failed to send email: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-02-02 12:29:40,311 | ERROR | Failed to send email to syedakhiyarhussain@gmail.com: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2026-02-02 12:50:17,252 | INFO | Connecting to SMTP: smtp.gmail.com:587
+2026-02-02 12:50:18,313 | ERROR | \u274c Failed to send email: [SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1000)
+2026-02-02 12:50:18,313 | ERROR | Failed to send email to syedakhiyarhussain@gmail.com: [SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1000)
+2026-02-02 12:53:07,326 | INFO | Connecting to SMTP: smtp.gmail.com:587
+2026-02-02 12:53:13,302 | INFO | \u2705 Email sent successfully to akhiyarhussains1769.sse@saveetha.com
