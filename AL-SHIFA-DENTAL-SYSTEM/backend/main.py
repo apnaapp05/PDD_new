@@ -184,10 +184,9 @@ def get_booked_slots_public(doctor_id: int, date: str, db: Session = Depends(get
     start_of_day = datetime.combine(query_date, datetime.min.time())
     end_of_day = datetime.combine(query_date, datetime.max.time())
 
-    # Fetch all active/blocked appointments
     appts = db.query(models.Appointment).filter(
         models.Appointment.doctor_id == doctor_id,
-        models.Appointment.start_time < end_of_day, # Overlaps with today
+        models.Appointment.start_time < end_of_day, 
         models.Appointment.end_time > start_of_day,
         models.Appointment.status.in_(["confirmed", "pending", "checked-in", "in_progress", "blocked"])
     ).all()
@@ -195,23 +194,16 @@ def get_booked_slots_public(doctor_id: int, date: str, db: Session = Depends(get
     occupied_slots = []
     
     for a in appts:
-        # We clamp the range to the current day (in case of multi-day blocks)
         start = max(a.start_time, start_of_day)
         end = min(a.end_time, end_of_day)
         
-        # Loop by 30 minutes to find every covered slot
         curr = start
         while curr < end:
-            # Format strictly as "09:30 AM" or "10:00 AM"
             slot_str = curr.strftime("%I:%M %p")
             occupied_slots.append(slot_str)
             curr += timedelta(minutes=30)
             
-    return list(set(occupied_slots)) # Remove duplicates
-    for a in appts:
-        booked_times.append(a.start_time.strftime("%I:%M %p")) 
-    
-    return booked_times
+    return list(set(occupied_slots)) 
 
 @public_router.post("/appointments")
 def create_appointment(appt: schemas.AppointmentCreate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -226,7 +218,6 @@ def create_appointment(appt: schemas.AppointmentCreate, user: models.User = Depe
     
     if start_dt < datetime.now(): raise HTTPException(400, "Cannot book past time")
     
-    # STRICT RULE: ONE ACTIVE APPOINTMENT PER PATIENT
     active_appt = db.query(models.Appointment).filter(
         models.Appointment.patient_id == patient.id,
         models.Appointment.status.in_(["confirmed", "pending", "checked-in", "in_progress"])
@@ -433,7 +424,7 @@ def complete_appointment(id: int, user: models.User = Depends(get_current_user),
     return {"message": "Completed", "status": "completed"}
 
 @doctor_router.post("/treatments/upload")
-@app.post("/api/treatments/upload") # Dual route for flexibility
+@app.post("/api/treatments/upload")
 async def upload_treatments(file: UploadFile = File(...), user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "doctor": raise HTTPException(403)
     doctor = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
@@ -457,7 +448,6 @@ async def upload_treatments(file: UploadFile = File(...), user: models.User = De
         db.commit(); return {"message": f"Uploaded {count} treatments"}
     except Exception as e: db.rollback(); raise HTTPException(400, f"Error: {str(e)}")
 
-# --- ROBUST INVENTORY UPLOAD (Fixed) ---
 @doctor_router.post("/inventory/upload")
 @app.post("/api/inventory/upload")
 async def upload_inventory(
@@ -536,11 +526,9 @@ def get_doc_treatments(user: models.User = Depends(get_current_user), db: Sessio
 def create_treatment(data: schemas.TreatmentCreate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
     
-    # FIX: Check if treatment exists for THIS doctor
     if db.query(models.Treatment).filter(models.Treatment.doctor_id == doc.id, models.Treatment.name == data.name).first():
         raise HTTPException(400, "Treatment already exists")
 
-    # FIX: Link strictly to doctor_id
     db.add(models.Treatment(hospital_id=doc.hospital_id, doctor_id=doc.id, name=data.name, cost=data.cost, description=data.description))
     db.commit()
     return {"message": "Created"}
@@ -556,7 +544,6 @@ def link_inv(tid: int, data: schemas.TreatmentLinkCreate, user: models.User = De
 def get_inv(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
     items = db.query(models.InventoryItem).filter(models.InventoryItem.hospital_id == doc.hospital_id).all()
-    # Explicitly return fields to ensure frontend gets threshold
     return [{
         "id": i.id, 
         "name": i.name, 
@@ -646,11 +633,8 @@ def get_fin(user: models.User = Depends(get_current_user), db: Session = Depends
     if not doc: return {"total_revenue": 0, "total_pending": 0, "invoices": []}
     
     try:
-        # Use Shared Service to get list
         service = AnalyticsService(db, doc.id)
         data = service.get_financial_summary()
-        
-        # Map Service keys to Frontend keys
         return {
             "total_revenue": data["revenue"],
             "total_pending": data["pending"],
@@ -795,7 +779,7 @@ def verify_otp(data: schemas.VerifyOTP, db: Session = Depends(get_db)):
 def me(u: models.User = Depends(get_current_user), db: Session = Depends(get_db)): 
     if u.role == "doctor":
         d = db.query(models.Doctor).filter(models.Doctor.user_id == u.id).first()
-        if d: u.specialization = d.specialization; # u.license_number line removed to prevent crash if missing
+        if d: u.specialization = d.specialization; 
     return u
 
 @auth_router.put("/profile")
@@ -928,25 +912,17 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 app.include_router(auth_router); app.include_router(admin_router); app.include_router(org_router); 
 @doctor_router.get("/invoices/{id}")
 def get_invoice_detail(id: int, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    # 1. Verify Doctor Role
     if user.role != "doctor": raise HTTPException(403, "Not authorized")
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
-    
-    # 2. Find Invoice & Verify Ownership (Invoice -> Appointment -> Doctor)
     inv = db.query(models.Invoice).join(models.Appointment).filter(
         models.Invoice.id == id,
         models.Appointment.doctor_id == doc.id
     ).first()
-    
     if not inv: raise HTTPException(404, "Invoice not found")
-    
-    # 3. Gather Details for Print View
     appt = inv.appointment
     patient = appt.patient
     p_user = patient.user
     hospital = doc.hospital
-    
-    # 4. Construct Response (Matches Frontend 'printInvoice' expectation)
     return {
         "id": inv.id,
         "date": inv.created_at.strftime("%Y-%m-%d"),
