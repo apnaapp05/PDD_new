@@ -26,6 +26,7 @@ import schemas
 import config
 from notifications.email import EmailAdapter
 import agent_routes
+import patient_agent_routes
 
 # --- LOGGING SETUP ---
 logging.basicConfig(level=logging.INFO)
@@ -949,4 +950,6 @@ def get_invoice_detail(id: int, user: models.User = Depends(get_current_user), d
     }
 app.include_router(doctor_router); app.include_router(public_router)
 app.include_router(agent_routes.router)
+app.include_router(patient_agent_routes.router)
 os.makedirs("media", exist_ok=True); app.mount("/media", StaticFiles(directory="media"), name="media")
+
