@@ -172,6 +172,47 @@ def get_public_doctor_settings(doctor_id: int, db: Session = Depends(get_db)):
     try: return json.loads(doc.scheduling_config)
     except: return default_settings
 
+
+@public_router.get("/doctors/{doctor_id}/booked-slots")
+def get_booked_slots_public(doctor_id: int, date: str, db: Session = Depends(get_db)):
+    """Returns a list of ALL 30-min slots that are occupied"""
+    try:
+        query_date = datetime.strptime(date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(400, "Invalid date format")
+
+    start_of_day = datetime.combine(query_date, datetime.min.time())
+    end_of_day = datetime.combine(query_date, datetime.max.time())
+
+    # Fetch all active/blocked appointments
+    appts = db.query(models.Appointment).filter(
+        models.Appointment.doctor_id == doctor_id,
+        models.Appointment.start_time < end_of_day, # Overlaps with today
+        models.Appointment.end_time > start_of_day,
+        models.Appointment.status.in_(["confirmed", "pending", "checked-in", "in_progress", "blocked"])
+    ).all()
+
+    occupied_slots = []
+    
+    for a in appts:
+        # We clamp the range to the current day (in case of multi-day blocks)
+        start = max(a.start_time, start_of_day)
+        end = min(a.end_time, end_of_day)
+        
+        # Loop by 30 minutes to find every covered slot
+        curr = start
+        while curr < end:
+            # Format strictly as "09:30 AM" or "10:00 AM"
+            slot_str = curr.strftime("%I:%M %p")
+            occupied_slots.append(slot_str)
+            curr += timedelta(minutes=30)
+            
+    return list(set(occupied_slots)) # Remove duplicates
+    for a in appts:
+        booked_times.append(a.start_time.strftime("%I:%M %p")) 
+    
+    return booked_times
+
 @public_router.post("/appointments")
 def create_appointment(appt: schemas.AppointmentCreate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "patient": raise HTTPException(403, "Only patients can book")
@@ -228,7 +269,7 @@ def create_appointment(appt: schemas.AppointmentCreate, user: models.User = Depe
 def get_my_appointments(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     p = db.query(models.Patient).filter(models.Patient.user_id == user.id).first()
     if not p: return []
-    appts = db.query(models.Appointment).filter(models.Appointment.patient_id == p.id).order_by(models.Appointment.start_time.desc()).all()
+    appts = db.query(models.Appointment).filter(models.Appointment.patient_id == p.id, models.Appointment.status != "cancelled").order_by(models.Appointment.start_time.desc()).all()
     res = []
     for a in appts:
         d = db.query(models.Doctor).filter(models.Doctor.id == a.doctor_id).first()

@@ -2,8 +2,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Building2, User, Calendar, ArrowLeft, Stethoscope, Clock } from "lucide-react";
+import { Building2, User, Calendar, ArrowLeft, Stethoscope, Clock, Loader2, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PatientAPI, AuthAPI, api } from "@/lib/api";
 
@@ -12,10 +11,15 @@ export default function NewBookingPage() {
   const [step, setStep] = useState(1);
   const [hospitals, setHospitals] = useState<any[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
-  const [treatments, setTreatments] = useState<any[]>([]); // Store Doctor Treatments
+  const [treatments, setTreatments] = useState<any[]>([]); 
   const [selHosp, setSelHosp] = useState<any>(null);
   const [selDoc, setSelDoc] = useState<any>(null);
+  
+  // Logic States
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const [slotError, setSlotError] = useState(""); // UI feedback if blocked
+  
   const [form, setForm] = useState({ date: "", time: "", reason: "" });
 
   useEffect(() => {
@@ -23,34 +27,97 @@ export default function NewBookingPage() {
     PatientAPI.getDoctors().then(res => setDoctors(res.data));
   }, []);
 
+  // Fetch Treatments when Doctor is selected
   useEffect(() => {
     if (selDoc) {
-      // 1. Fetch Doctor Treatments for the Dropdown
       PatientAPI.getDoctorTreatments(selDoc.id)
         .then(res => setTreatments(res.data))
         .catch(err => console.error("Error fetching treatments", err));
-
-      // 2. Fetch Doctor Schedule Settings
-      api.get(`/doctors/${selDoc.id}/settings`)
-         .then(res => generateTimeSlots(res.data.work_start_time, res.data.work_end_time, res.data.slot_duration))
-         .catch(() => generateTimeSlots("09:00", "17:00", 30));
     }
   }, [selDoc]);
 
-  const generateTimeSlots = (start: string, end: string, duration: number) => {
-      const slots = [];
-      const startTime = new Date(`1970-01-01T${start}:00`);
-      const endTime = new Date(`1970-01-01T${end}:00`);
-      while (startTime < endTime) {
-          slots.push(startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }));
-          startTime.setMinutes(startTime.getMinutes() + duration);
+  // --- THE DATE-FIRST LOGIC (With Strict Normalization) ---
+  useEffect(() => {
+    if (selDoc && form.date) {
+        setIsLoadingSlots(true);
+        setAvailableSlots([]); 
+        setSlotError("");
+        setForm(prev => ({ ...prev, time: "" })); 
+
+        // 1. Get List of BUSY Slots
+        api.get(`/public/doctors/${selDoc.id}/booked-slots?date=${form.date}`)
+           .then(res => {
+               const blocked = res.data || [];
+               
+               // 2. Get Doctor's Working Hours
+               api.get(`/doctors/${selDoc.id}/settings`)
+                 .then(s => {
+                     generateTimeSlots(s.data.work_start_time, s.data.work_end_time, s.data.slot_duration, blocked);
+                     setIsLoadingSlots(false);
+                 })
+                 .catch(() => {
+                     // Default fallback (9-5)
+                     generateTimeSlots("09:00", "17:00", 30, blocked);
+                     setIsLoadingSlots(false);
+                 });
+           })
+           .catch(err => {
+               console.error("Error fetching slots", err);
+               setSlotError("Could not load schedule. Try another date.");
+               setIsLoadingSlots(false);
+           });
+    }
+  }, [form.date, selDoc]);
+
+  // Robust Math-Based Generator + Normalizer
+  const generateTimeSlots = (start: string, end: string, duration: number, blocked: string[]) => {
+      const toMinutes = (time: string) => {
+          const [h, m] = time.split(":").map(Number);
+          return h * 60 + m;
+      };
+
+      const toTimeStr = (totalMinutes: number) => {
+          const h = Math.floor(totalMinutes / 60);
+          const m = totalMinutes % 60;
+          const ampm = h >= 12 ? "PM" : "AM";
+          const hour12 = h % 12 || 12; 
+          // Return standard format: "09:30 AM"
+          return `${hour12.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${ampm}`;
+      };
+
+      const startMin = toMinutes(start);
+      const endMin = toMinutes(end);
+      const validSlots = [];
+
+      // --- THE NORMALIZER ---
+      // We strip everything down to "930AM" for comparison
+      const normalize = (t: string) => t.replace(/[^a-zA-Z0-9]/g, "").replace(/^0+/, "").toUpperCase();
+
+      const normalizedBlocked = blocked.map(normalize);
+
+      for (let time = startMin; time < endMin; time += duration) {
+          const slotLabel = toTimeStr(time);
+          const compareKey = normalize(slotLabel);
+          
+          if (!normalizedBlocked.includes(compareKey)) {
+              validSlots.push(slotLabel);
+          }
       }
-      setAvailableSlots(slots);
+
+      setAvailableSlots(validSlots);
+      
+      if (validSlots.length === 0) {
+          setSlotError("No available slots for this date.");
+      }
   };
 
   const submit = async () => {
     if (!form.reason || form.reason === "Select Treatment") {
         alert("Please select a reason for the visit.");
+        return;
+    }
+    if (!form.time || form.time === "Select Slot") {
+        alert("Please select a time slot.");
         return;
     }
     try {
@@ -118,13 +185,33 @@ export default function NewBookingPage() {
                     <div className="grid grid-cols-2 gap-6">
                         <div>
                             <label className="text-xs font-bold text-slate-600 mb-2 block flex items-center gap-1"><Calendar className="h-3 w-3"/> Date</label>
-                            <input type="date" className="border p-3 rounded-lg w-full outline-none focus:ring-2 focus:ring-blue-500 text-slate-700" onChange={e => setForm({...form, date: e.target.value})}/>
+                            <input 
+                                type="date" 
+                                className="border p-3 rounded-lg w-full outline-none focus:ring-2 focus:ring-blue-500 text-slate-700" 
+                                onChange={e => setForm({...form, date: e.target.value})}
+                            />
                         </div>
                         <div>
                             <label className="text-xs font-bold text-slate-600 mb-2 block flex items-center gap-1"><Clock className="h-3 w-3"/> Time</label>
-                            <select className="border p-3 rounded-lg w-full bg-white outline-none focus:ring-2 focus:ring-blue-500 text-slate-700" onChange={e => setForm({...form, time: e.target.value})}>
-                                <option>Select Slot</option>{availableSlots.map(t => <option key={t}>{t}</option>)}
+                            
+                            <select 
+                                className={`border p-3 rounded-lg w-full outline-none focus:ring-2 focus:ring-blue-500 text-slate-700 ${(!form.date || slotError) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white'}`}
+                                disabled={!form.date || isLoadingSlots || slotError !== ""}
+                                onChange={e => setForm({...form, time: e.target.value})}
+                                value={form.time}
+                            >
+                                <option value="">
+                                    {!form.date ? "Select Date First" : isLoadingSlots ? "Checking availability..." : slotError ? slotError : "Select Slot"}
+                                </option>
+                                
+                                {!isLoadingSlots && !slotError && availableSlots.length > 0 && (
+                                    availableSlots.map(t => <option key={t} value={t}>{t}</option>)
+                                )}
                             </select>
+                            
+                            {/* Visual Feedback for Loading/Error */}
+                            {isLoadingSlots && <div className="text-xs text-blue-500 mt-1 flex items-center"><Loader2 className="h-3 w-3 animate-spin mr-1"/> finding slots...</div>}
+                            {slotError && <div className="text-xs text-red-500 mt-1 flex items-center"><AlertCircle className="h-3 w-3 mr-1"/> {slotError}</div>}
                         </div>
                     </div>
                     
@@ -143,7 +230,6 @@ export default function NewBookingPage() {
                                     </option>
                                 ))
                             ) : (
-                                // Fallback if no treatments found (e.g. general checkup)
                                 <>
                                     <option value="General Checkup">General Checkup</option>
                                     <option value="Consultation">Consultation</option>
@@ -152,7 +238,7 @@ export default function NewBookingPage() {
                         </select>
                     </div>
 
-                    <Button onClick={submit} className="w-full bg-blue-600 hover:bg-blue-700 text-lg h-12 shadow-lg shadow-blue-200 font-bold">
+                    <Button onClick={submit} disabled={isLoadingSlots || availableSlots.length === 0} className="w-full bg-blue-600 hover:bg-blue-700 text-lg h-12 shadow-lg shadow-blue-200 font-bold disabled:opacity-50 disabled:cursor-not-allowed">
                         Confirm Appointment
                     </Button>
                 </div>
