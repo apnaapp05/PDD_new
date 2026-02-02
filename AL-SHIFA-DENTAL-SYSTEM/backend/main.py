@@ -952,4 +952,3 @@ app.include_router(doctor_router); app.include_router(public_router)
 app.include_router(agent_routes.router)
 app.include_router(patient_agent_routes.router)
 os.makedirs("media", exist_ok=True); app.mount("/media", StaticFiles(directory="media"), name="media")
-

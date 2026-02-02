@@ -85,4 +85,5 @@ export const OrganizationAPI = {
 
 export const AgentAPI = {
   chat: (query: string) => api.post("/doctor/agent/chat", { query }),
+  patientChat: (query: string) => api.post("/patient/agent/chat", { query }),
 };

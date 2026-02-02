@@ -2,172 +2,227 @@ import spacy
 import pandas as pd
 from rapidfuzz import process, fuzz
 from datetime import datetime, timedelta
-import json
 from sqlalchemy.orm import Session
-from models import Doctor, Appointment, Patient, Treatment, Hospital
+from models import Doctor, Appointment, Patient, User
+from services.appointment_service import AppointmentService
 
-# Load NLP Model (Lightweight English model)
 try:
     nlp = spacy.load("en_core_web_sm")
 except:
-    # Fallback if model isn't downloaded yet
     import os
     os.system("python -m spacy download en_core_web_sm")
     nlp = spacy.load("en_core_web_sm")
 
 class PatientBrain:
-    def __init__(self, db: Session):
+    _sessions = {}
+
+    def __init__(self, db: Session, patient_id: int):
         self.db = db
-        # Valid Intents mapped to fuzzy keywords
-        self.intents = {
-            "book_appointment": ["book", "schedule", "appointment", "visit", "see a doctor", "reservation"],
-            "cancel_appointment": ["cancel", "delete", "remove", "not coming"],
-            "reschedule_appointment": ["reschedule", "move", "change time", "postpone", "delay"],
-            "check_availability": ["available", "slots", "openings", "when is", "free time"]
-        }
-
-    def _detect_intent(self, text: str):
-        """Uses RapidFuzz to find the closest matching intent."""
-        # Flatten the intent list for matching
-        all_keywords = []
-        key_map = {}
-        for intent, keys in self.intents.items():
-            for k in keys:
-                all_keywords.append(k)
-                key_map[k] = intent
+        self.patient_id = patient_id
+        if patient_id not in self._sessions:
+            self._sessions[patient_id] = {
+                "intent": None, 
+                # Shared slots + specific appointment_id for cancel/reschedule
+                "slots": {"doctor": None, "doctor_id": None, "treatment": None, "date": None, "time": None, "appointment_id": None}
+            }
         
-        # Extract best match
-        best_match = process.extractOne(text.lower(), all_keywords, scorer=fuzz.partial_ratio)
-        if best_match and best_match[1] > 70:  # 70% confidence threshold
-            return key_map[best_match[0]]
-        return "unknown"
+        self.session = self._sessions[patient_id]
+        self.appt_service = AppointmentService(db, None) 
 
-    def _extract_entities(self, text: str):
-        """Uses SpaCy to extract Dates, Times, and Doctor Names."""
+    # --- PARSERS ---
+    def _parse_time(self, time_str):
+        if not time_str: return None
+        time_str = time_str.strip().upper()
+        formats = ["%I:%M %p", "%I:%M%p", "%H:%M", "%I %p", "%I%p"]
+        for fmt in formats:
+            try: return datetime.strptime(time_str, fmt).strftime("%H:%M")
+            except ValueError: continue
+        return None
+
+    def _parse_date(self, date_str):
+        if not date_str: return datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now().date()
+        d_str = date_str.lower()
+        if "today" in d_str: return today.strftime("%Y-%m-%d")
+        if "tomorrow" in d_str: return (today + timedelta(days=1)).strftime("%Y-%m-%d")
+        return date_str
+
+    # --- SCANNER ---
+    def _scan_for_slots(self, text: str):
         doc = nlp(text)
-        entities = {"date": None, "time": None, "doctor_name": None}
-        
+        found = {}
         for ent in doc.ents:
-            if ent.label_ == "DATE":
-                entities["date"] = ent.text
-            elif ent.label_ == "TIME":
-                entities["time"] = ent.text
-            elif ent.label_ == "PERSON":
-                entities["doctor_name"] = ent.text
+            if ent.label_ == "TIME": found["time"] = ent.text
+            if ent.label_ == "DATE": found["date"] = ent.text
+
+        # Doctor Match
+        doctors = self.db.query(Doctor).join(User).all()
+        doc_map = {d.user.full_name: d.id for d in doctors if d.user}
+        if doc_map:
+            match = process.extractOne(text, doc_map.keys(), scorer=fuzz.token_set_ratio)
+            if match and match[1] > 60: 
+                found["doctor"] = match[0]
+                found["doctor_id"] = doc_map[match[0]]
+
+        # Treatment Match
+        treatments = ["Root Canal", "Checkup", "Cleaning", "Extraction", "Whitening"]
+        t_match = process.extractOne(text, treatments, scorer=fuzz.partial_ratio)
+        if t_match and t_match[1] > 70: found["treatment"] = t_match[0]
         
-        # Fallback: Look for specific words if SpaCy misses
-        if not entities["doctor_name"]:
-            # Check DB for doctor names in the text (using Pandas for speed)
-            doctors = self.db.query(Doctor).all()
-            doc_names = [d.user.full_name.lower() for d in doctors if d.user]
-            match = process.extractOne(text.lower(), doc_names, score_cutoff=80)
-            if match:
-                entities["doctor_name"] = match[0]
+        return found
+
+    # --- INTENT DETECTOR ---
+    def _detect_intent(self, text: str):
+        q = text.lower()
+        # High Priority: Cancel
+        if any(w in q for w in ["cancel", "delete", "remove", "not coming"]):
+            return "cancel"
+        # High Priority: Reschedule
+        if any(w in q for w in ["reschedule", "move", "change time", "delay", "postpone"]):
+            return "reschedule"
+        # Lower Priority: Book
+        if any(w in q for w in ["book", "schedule", "appointment", "visit"]):
+            return "book"
+        return None
+
+    def process(self, query: str):
+        q = query.lower()
+        
+        # 1. Update Intent if keywords present
+        detected = self._detect_intent(query)
+        if detected:
+            self.session["intent"] = detected
+            # Clear slots if switching intents (except doctor maybe)
+            if detected != self.session.get("last_intent"):
+                self.session["slots"] = {"doctor": None, "doctor_id": None, "treatment": None, "date": None, "time": None, "appointment_id": None}
+            self.session["last_intent"] = detected
+
+        intent = self.session["intent"]
+        
+        # 2. Update Slots
+        new_slots = self._scan_for_slots(query)
+        self.session["slots"].update(new_slots)
+        slots = self.session["slots"]
+
+        # --- BRANCH: CANCEL ---
+        if intent == "cancel":
+            # Step 1: Identify Appointment
+            if not slots["appointment_id"]:
+                # Fetch upcoming
+                upcoming = self.appt_service.get_patient_upcoming(self.patient_id)
+                if not upcoming:
+                    return {"text": "You don't have any upcoming appointments to cancel."}
                 
-        return entities
-
-    def _get_doctor_slots_pandas(self, doctor_name: str, date_str: str):
-        """Uses Pandas to calculate available slots efficiently."""
-        # 1. Find Doctor
-        # Assuming doctor_name is partial, we search DB
-        doc_query = self.db.query(Doctor).join(Doctor.user).all()
-        # Find best match ID
-        name_map = {d.user.full_name.lower(): d.id for d in doc_query}
-        match = process.extractOne(doctor_name.lower(), name_map.keys(), score_cutoff=80)
-        
-        if not match:
-            return None, "I couldn't find a doctor with that name."
-        
-        doctor_id = name_map[match[0]]
-        
-        # 2. Parse Date
-        try:
-            # Simple parser (in real app, use dateparser library)
-            target_date = datetime.now().date() 
-            if "tomorrow" in date_str.lower():
-                target_date = target_date + timedelta(days=1)
-            # (Logic for specific dates like 'next monday' requires more NLP, keeping simple for now)
-            
-            fmt_date = target_date.strftime("%Y-%m-%d")
-        except:
-            return None, "I couldn't understand the date."
-
-        # 3. Fetch Booked Slots (Using standard SQL)
-        start_day = datetime.combine(target_date, datetime.min.time())
-        end_day = datetime.combine(target_date, datetime.max.time())
-        
-        appts = self.db.query(Appointment).filter(
-            Appointment.doctor_id == doctor_id,
-            Appointment.start_time >= start_day,
-            Appointment.start_time <= end_day,
-            Appointment.status.in_(["confirmed", "pending", "blocked"])
-        ).all()
-
-        # 4. Use Pandas for Slot Logic
-        # Create a DataFrame of busy slots
-        busy_data = [{"start": a.start_time, "end": a.end_time} for a in appts]
-        df_busy = pd.DataFrame(busy_data)
-
-        # Generate All Potential Slots (e.g. 9 to 5)
-        # We assume standard hours if not found in settings
-        start_work = datetime.combine(target_date, datetime.strptime("09:00", "%H:%M").time())
-        end_work = datetime.combine(target_date, datetime.strptime("17:00", "%H:%M").time())
-        
-        # Generate range every 30 mins
-        all_slots = pd.date_range(start=start_work, end=end_work, freq="30min")
-        
-        # Filter: Drop slots that overlap with busy dataframe
-        available = []
-        for slot in all_slots:
-            slot_end = slot + timedelta(minutes=30)
-            is_taken = False
-            if not df_busy.empty:
-                # Vectorized check: overlapping ranges
-                # (StartA < EndB) and (EndA > StartB)
-                overlaps = (df_busy["start"] < slot_end) & (df_busy["end"] > slot)
-                if overlaps.any():
-                    is_taken = True
-            
-            if not is_taken:
-                available.append(slot.strftime("%I:%M %p"))
-
-        return available, f"I checked for {match[0]} on {fmt_date}."
-
-    def process_message(self, user_msg: str, user_id: int = None):
-        """Main Entry Point"""
-        intent = self._detect_intent(user_msg)
-        entities = self._extract_entities(user_msg)
-        
-        response = {
-            "text": "",
-            "intent": intent,
-            "detected_entities": entities,
-            "data": None
-        }
-
-        if intent == "book_appointment" or intent == "check_availability":
-            if not entities["doctor_name"]:
-                response["text"] = "I can help with that. Which doctor would you like to see?"
-                # In frontend, we can show a list of doctors as 'chips'
-            elif not entities["date"]:
-                response["text"] = f"Checking availability for Dr. {entities['doctor_name']}. What date works for you?"
-            else:
-                slots, msg = self._get_doctor_slots_pandas(entities["doctor_name"], entities["date"])
-                if slots:
-                    response["text"] = f"{msg} Here are the available slots:\n" + ", ".join(slots[:5])
-                    response["data"] = {"slots": slots, "doctor": entities["doctor_name"], "date": entities["date"]}
+                # Check if user selected one via text match (e.g. "cancel the one with Dr Ali")
+                # Simple logic: If only 1 exists, auto-select
+                if len(upcoming) == 1:
+                    slots["appointment_id"] = upcoming[0].id
+                    slots["doctor"] = upcoming[0].doctor.user.full_name
+                    # Fall through to confirmation
                 else:
-                    response["text"] = f"{msg} Unfortunately, there are no slots available."
-        
-        elif intent == "cancel_appointment":
-            response["text"] = "I can verify your scheduled appointments. Please provide the booking ID or the date."
-            # Logic to fetch user appointments would go here
-            
-        elif intent == "unknown":
-            response["text"] = "I'm still learning! Would you like to book an appointment or check doctor availability?"
-            
-        else:
-            response["text"] = f"I detected you want to {intent.replace('_', ' ')}, but I need more details."
+                    # Logic to matching user selection from list would go here.
+                    # For now, ask user to pick:
+                    options = [f"Dr. {u.doctor.user.full_name} ({u.start_time.strftime('%b %d %H:%M')})" for u in upcoming]
+                    # Also need to map selection back to ID. In a real app we'd use a map.
+                    # Hack: Store map in session for next turn? 
+                    # Simpler: Just showing text. If user types "Dr Ali", the scanner finds "Doctor".
+                    
+                    # We will rely on scanner finding "Doctor" to filter the list
+                    if slots["doctor"]:
+                        # Filter by doctor name
+                        filtered = [u for u in upcoming if slots["doctor"] in u.doctor.user.full_name]
+                        if len(filtered) == 1:
+                            slots["appointment_id"] = filtered[0].id
+                        else:
+                            return {"text": f"You have multiple appointments with Dr. {slots['doctor']}. Which date?", "actions": [u.start_time.strftime('%Y-%m-%d') for u in filtered]}
+                    else:
+                        return {"text": "Which appointment would you like to cancel?", "actions": options}
 
-        return response
+            # Step 2: Confirm & Execute
+            if slots["appointment_id"]:
+                if any(w in q for w in ["confirm", "yes", "ok"]):
+                    try:
+                        self.appt_service.cancel_appointment_by_id(slots["appointment_id"], self.patient_id)
+                        self.session["intent"] = None
+                        self.session["slots"]["appointment_id"] = None
+                        return {"text": "✅ Appointment cancelled successfully.", "redirect": "/patient/dashboard"}
+                    except Exception as e:
+                        return {"text": f"Error canceling: {str(e)}"}
+                
+                return {"text": "Are you sure you want to cancel this appointment?", "actions": ["Yes, Confirm", "No, Keep it"]}
 
+        # --- BRANCH: RESCHEDULE ---
+        if intent == "reschedule":
+            # Step 1: Identify Appointment (Same logic as cancel)
+            if not slots["appointment_id"]:
+                upcoming = self.appt_service.get_patient_upcoming(self.patient_id)
+                if not upcoming: return {"text": "No upcoming appointments to reschedule."}
+                
+                if len(upcoming) == 1:
+                    slots["appointment_id"] = upcoming[0].id
+                    # Pre-fill doctor for context
+                    slots["doctor"] = upcoming[0].doctor.user.full_name 
+                elif slots["doctor"]:
+                     filtered = [u for u in upcoming if slots["doctor"] in u.doctor.user.full_name]
+                     if len(filtered) == 1: slots["appointment_id"] = filtered[0].id
+                
+                if not slots["appointment_id"]:
+                     options = [f"Dr. {u.doctor.user.full_name} ({u.start_time.strftime('%b %d')})" for u in upcoming]
+                     return {"text": "Which appointment do you want to move?", "actions": options}
+
+            # Step 2: Get New Time
+            if not slots["date"] or not slots["time"]:
+                return {"text": "When would you like to move it to?", "actions": ["Tomorrow 10am", "Tomorrow 2pm"]}
+
+            # Step 3: Confirm & Execute
+            if any(w in q for w in ["confirm", "yes", "ok"]):
+                try:
+                    final_date = self._parse_date(slots["date"])
+                    final_time = self._parse_time(slots["time"])
+                    if not final_time: return {"text": "Invalid time format."}
+
+                    self.appt_service.reschedule_appointment(
+                        slots["appointment_id"], self.patient_id, final_date, final_time
+                    )
+                    self.session["intent"] = None
+                    self.session["slots"] = {"doctor": None, "doctor_id": None, "treatment": None, "date": None, "time": None, "appointment_id": None}
+                    return {"text": f"✅ Rescheduled to **{final_date}** at **{final_time}**.", "redirect": "/patient/dashboard"}
+                except Exception as e:
+                    return {"text": f"Could not reschedule: {str(e)} (Maybe slot is taken?)"}
+
+            return {"text": f"Confirm move to **{slots['date']}** at **{slots['time']}**?", "actions": ["Yes, Confirm", "No"]}
+
+        # --- BRANCH: BOOK (Legacy + Chips) ---
+        if intent == "book":
+            if not slots["doctor"]:
+                docs = self.db.query(Doctor).join(User).limit(5).all()
+                return {"text": "Which doctor?", "actions": [d.user.full_name for d in docs if d.user]}
+            
+            if not slots["treatment"]:
+                return {"text": f"Treatment for Dr. {slots['doctor']}?", "actions": ["Checkup", "Root Canal", "Cleaning"]}
+            
+            if not slots["time"]:
+                return {"text": "When would you like to come?", "actions": ["Today 10am", "Tomorrow 2pm"]}
+
+            if any(w in q for w in ["confirm", "yes", "ok"]):
+                try:
+                    final_date = self._parse_date(slots["date"])
+                    final_time = self._parse_time(slots["time"])
+                    if not final_time: return {"text": "Please provide a valid time (e.g. 10:00 AM)."}
+                    
+                    self.appt_service.doc_id = slots["doctor_id"]
+                    self.appt_service.book_appointment(self.patient_id, final_date, final_time, slots["treatment"])
+                    
+                    self.session["intent"] = None
+                    self.session["slots"] = {"doctor": None, "doctor_id": None, "treatment": None, "date": None, "time": None, "appointment_id": None}
+                    return {"text": f"✅ Booked {slots['treatment']} with {slots['doctor']}.", "redirect": "/patient/dashboard"}
+                except Exception as e:
+                    return {"text": f"Error: {str(e)}"}
+
+            return {"text": f"Book **{slots['treatment']}** with **{slots['doctor']}** at **{slots['time']}**?", "actions": ["Yes", "No"]}
+
+        # DEFAULT
+        return {
+            "text": "Salam! I can help you **Book**, **Cancel**, or **Reschedule** appointments.",
+            "actions": ["Book Appointment", "Cancel Appointment", "Reschedule"]
+        }

@@ -43,7 +43,7 @@ class ClinicAgent:
         self.context = {"last_patient": None}
 
         # Ensure Scheduler is running
-        proactive_system.start()
+        # proactive_system.start() # Disabled for Stability
 
     def _train_intent_model(self):
         """Builds the 'Brain' by vectorizing the intent training data"""
@@ -211,6 +211,7 @@ class ClinicAgent:
         clean = query
         for t in triggers: clean = clean.replace(t, "")
         return clean.strip()
+
 
 
 
