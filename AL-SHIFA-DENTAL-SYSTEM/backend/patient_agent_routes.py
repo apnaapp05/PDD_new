@@ -20,5 +20,26 @@ def patient_chat(request: ChatRequest, db: Session = Depends(get_db), current_us
     if not patient:
         raise HTTPException(status_code=404, detail="Patient profile not found")
 
-    brain = PatientBrain(db, patient.id)
-    return brain.process(request.query)
+    # --- SESSION PERSISTENCE ---
+    global CHAT_SESSIONS
+    if 'CHAT_SESSIONS' not in globals():
+        CHAT_SESSIONS = {}
+
+    if patient.id not in CHAT_SESSIONS:
+        CHAT_SESSIONS[patient.id] = PatientBrain(db, patient.id)
+    
+    brain = CHAT_SESSIONS[patient.id]
+    
+    # CRITICAL: Update DB session for this request (old session is closed)
+    brain.db = db
+    brain.tool_engine.db = db
+    brain.tool_engine.appt_service.db = db
+    # ---------------------------
+    try:
+        print(f"DEBUG: Processing query: {request.query}")
+        response_text = brain.process(request.query)
+        print(f"DEBUG: Brain returned: {response_text!r}")
+        return response_text
+    except Exception as e:
+        print(f"DEBUG: Error in route: {e}")
+        return {"response": f"❌ Error: {str(e)}"}

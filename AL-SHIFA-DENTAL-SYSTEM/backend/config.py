@@ -14,6 +14,8 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./dental_clinic.db")
 
 # AI Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # Agent Settings
 MAX_AGENT_STEPS = 5

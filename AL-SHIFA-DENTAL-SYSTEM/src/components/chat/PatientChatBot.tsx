@@ -37,18 +37,18 @@ export default function PatientChatBot({ isFullPage = false }: { isFullPage?: bo
     try {
       const res = await AgentAPI.patientChat(userMsg);
       const botRes = res.data;
-      
-      setMessages(prev => [...prev, { 
-        role: 'bot', 
-        content: botRes.text, 
+
+      setMessages(prev => [...prev, {
+        role: 'bot',
+        content: botRes.response || botRes.text,
         actions: botRes.actions,
         redirect: botRes.redirect
       }]);
-      
+
       if (botRes.redirect) {
         setTimeout(() => router.push(botRes.redirect), 2500);
       }
-      
+
     } catch (err) {
       setMessages(prev => [...prev, { role: 'bot', content: '⚠️ Connection error. Please ensure the backend is running.' }]);
     } finally {
@@ -65,29 +65,27 @@ export default function PatientChatBot({ isFullPage = false }: { isFullPage?: bo
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`flex gap-3 max-w-[85%] ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
-              
+
               {/* Avatar Icon */}
-              <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 shadow-sm ${
-                m.role === 'user' ? 'bg-blue-600' : 'bg-teal-600'
-              }`}>
-                {m.role === 'user' ? <User className="h-5 w-5 text-white"/> : <Bot className="h-5 w-5 text-white"/>}
+              <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 shadow-sm ${m.role === 'user' ? 'bg-blue-600' : 'bg-teal-600'
+                }`}>
+                {m.role === 'user' ? <User className="h-5 w-5 text-white" /> : <Bot className="h-5 w-5 text-white" />}
               </div>
 
               {/* Chat Bubble */}
-              <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${
-                m.role === 'user' 
-                  ? 'bg-blue-600 text-white rounded-tr-none' 
+              <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${m.role === 'user'
+                  ? 'bg-blue-600 text-white rounded-tr-none'
                   : 'bg-white border border-slate-200 text-slate-700 rounded-tl-none'
-              }`}>
+                }`}>
                 <div className="whitespace-pre-wrap">{m.content}</div>
-                
+
                 {/* AI Action Chips */}
                 {m.actions && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {m.actions.map(a => (
-                      <button 
-                        key={a} 
-                        onClick={() => { setQuery(a); }} 
+                      <button
+                        key={a}
+                        onClick={() => { setQuery(a); }}
                         className="text-[11px] font-bold bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-100 hover:bg-blue-100 transition-colors"
                       >
                         {a}
@@ -95,27 +93,27 @@ export default function PatientChatBot({ isFullPage = false }: { isFullPage?: bo
                     ))}
                   </div>
                 )}
-                
+
                 {/* Redirecting Indicator */}
                 {m.redirect && (
                   <div className="mt-3 text-[10px] font-medium text-blue-100 flex items-center gap-1.5 animate-pulse">
-                    <Sparkles className="h-3 w-3"/> Taking you there...
+                    <Sparkles className="h-3 w-3" /> Taking you there...
                   </div>
                 )}
               </div>
             </div>
           </div>
         ))}
-        
+
         {loading && (
           <div className="flex justify-start">
-             <div className="bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
-                <div className="flex gap-1">
-                  <span className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce"></span>
-                  <span className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                  <span className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
-                </div>
-             </div>
+            <div className="bg-white border border-slate-200 px-4 py-2 rounded-full shadow-sm">
+              <div className="flex gap-1">
+                <span className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce"></span>
+                <span className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                <span className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+              </div>
+            </div>
           </div>
         )}
         <div ref={scrollRef} />
@@ -123,15 +121,15 @@ export default function PatientChatBot({ isFullPage = false }: { isFullPage?: bo
 
       {/* Input Section */}
       <div className="p-4 bg-white border-t border-slate-200 flex gap-3 items-center">
-        <input 
-          value={query} 
-          onChange={(e) => setQuery(e.target.value)} 
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()} 
-          placeholder="Ask me to book, cancel or analyze..." 
-          className="flex-1 border border-slate-200 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 bg-slate-50 transition-all" 
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          placeholder="Ask me to book, cancel or analyze..."
+          className="flex-1 border border-slate-200 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 bg-slate-50 transition-all"
         />
-        <Button 
-          onClick={handleSend} 
+        <Button
+          onClick={handleSend}
           disabled={!query.trim() || loading}
           className="h-12 w-12 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95"
         >

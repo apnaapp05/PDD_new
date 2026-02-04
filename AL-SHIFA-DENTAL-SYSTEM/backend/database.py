@@ -5,12 +5,12 @@ from config import DATABASE_URL
 # Determine if we are using SQLite
 is_sqlite = DATABASE_URL.startswith("sqlite")
 
+
 # Create the engine with appropriate arguments
-connect_args = {"check_same_thread": False} if is_sqlite else {}
+# connect_args = {"check_same_thread": False} if is_sqlite else {}
 
 engine = create_engine(
-    DATABASE_URL,
-    connect_args=connect_args
+    DATABASE_URL
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -1,7 +1,7 @@
 // src/lib/api.ts
 import axios from "axios";
 
-const API_URL = "http://localhost:8000"; 
+const API_URL = "http://localhost:8000";
 
 export const api = axios.create({ baseURL: API_URL, headers: { "Content-Type": "application/json" } });
 
@@ -14,11 +14,11 @@ api.interceptors.request.use((config) => {
 });
 
 export const AuthAPI = {
-  login: (e: string, p: string) => { 
-    const d = new URLSearchParams(); 
-    d.append("username", e); 
-    d.append("password", p); 
-    return api.post("/auth/login", d, { headers: { "Content-Type": "application/x-www-form-urlencoded" } }); 
+  login: (e: string, p: string) => {
+    const d = new URLSearchParams();
+    d.append("username", e);
+    d.append("password", p);
+    return api.post("/auth/login", d, { headers: { "Content-Type": "application/x-www-form-urlencoded" } });
   },
   register: (d: any) => api.post("/auth/register", d),
   verifyOtp: (d: any) => api.post("/auth/verify-otp", d),
@@ -40,7 +40,7 @@ export const DoctorAPI = {
   getSchedule: () => api.get("/doctor/schedule"),
   getAppointments: (date: string) => api.get(`/doctor/appointments?date=${date}`),
   blockSlot: (d: any) => api.post("/doctor/schedule/block", d),
-  startAppointment: (id: number) => api.post(`/doctor/appointments/${id}/start`), 
+  startAppointment: (id: number) => api.post(`/doctor/appointments/${id}/start`),
   completeAppointment: (id: number) => api.post(`/doctor/appointments/${id}/complete`),
   getPatients: () => api.get("/doctor/patients"),
   createPatient: (d: any) => api.post("/doctor/patients", d),
@@ -85,5 +85,6 @@ export const OrganizationAPI = {
 
 export const AgentAPI = {
   chat: (query: string) => api.post("/doctor/agent/chat", { query }),
+  uploadKnowledge: (d: FormData) => api.post("/doctor/agent/upload", d, { headers: { "Content-Type": "multipart/form-data" } }),
   patientChat: (query: string) => api.post("/patient/agent/chat", { query }),
 };

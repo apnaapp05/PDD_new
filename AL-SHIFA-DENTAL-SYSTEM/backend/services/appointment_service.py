@@ -129,3 +129,25 @@ class AppointmentService:
     def block_slot(self, date_str: str, time_str: str, reason: str):
         # Implementation for doctor blocking (simplified here)
         return self.book_appointment(None, date_str, time_str, "Blocked") 
+
+    def get_available_slots(self, date_str: str):
+        """
+        Generate available 30-minute slots for a given date (09:00 - 17:00).
+        """
+        booked = self.get_schedule(date_str)
+        booked_times = {a.start_time.strftime("%H:%M") for a in booked if a.status != 'cancelled'}
+        
+        slots = []
+        start_hour = 9  # 9 AM
+        end_hour = 17   # 5 PM
+        
+        current_dt = datetime.strptime(f"{date_str} {start_hour}:00", "%Y-%m-%d %H:%M")
+        end_dt_limit = datetime.strptime(f"{date_str} {end_hour}:00", "%Y-%m-%d %H:%M")
+        
+        while current_dt < end_dt_limit:
+            time_str = current_dt.strftime("%H:%M")
+            if time_str not in booked_times:
+                slots.append(time_str)
+            current_dt += timedelta(minutes=30)
+            
+        return slots 

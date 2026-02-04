@@ -13,8 +13,8 @@ chromadb
 python-dotenv
 
 # --- NEW AI AGENT LIBRARIES ---
-spacy
-rapidfuzz
+google-generativeai
+pypdf
 pandas
 apscheduler
-scikit-learn
+openai
