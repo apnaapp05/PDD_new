@@ -56,7 +56,8 @@ def register(user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Se
             db.commit()
         else:
             hashed_pw = get_password_hash(user.password)
-            new_user = models.User(email=email_clean, password_hash=hashed_pw, full_name=user.full_name, role=user.role, is_email_verified=False, otp_code=otp, otp_expires_at=expires_at, address=user.address)
+            dob_dt = datetime.strptime(user.dob, "%Y-%m-%d") if user.dob else None
+            new_user = models.User(email=email_clean, password_hash=hashed_pw, full_name=user.full_name, role=user.role, is_email_verified=False, otp_code=otp, otp_expires_at=expires_at, address=user.address, phone_number=user.phone_number, dob=dob_dt)
             db.add(new_user); db.flush() 
             if user.role == "organization": db.add(models.Hospital(owner_id=new_user.id, name=user.full_name, address=user.address or "Pending", is_verified=True))
             elif user.role == "patient": db.add(models.Patient(user_id=new_user.id, age=user.age or 0, gender=user.gender))
@@ -64,7 +65,7 @@ def register(user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Se
                 if not user.hospital_name: db.rollback(); raise HTTPException(400, "Hospital name required")
                 hospital = db.query(models.Hospital).filter(models.Hospital.name == user.hospital_name).first()
                 if not hospital: db.rollback(); raise HTTPException(400, "Hospital not found")
-                db.add(models.Doctor(user_id=new_user.id, hospital_id=hospital.id, specialization=user.specialization, license_number=user.license_number, is_verified=True))
+                db.add(models.Doctor(user_id=new_user.id, hospital_id=hospital.id, specialization=user.specialization, is_verified=True))
             db.commit()
         
         background_tasks.add_task(send_email_safe, email_clean, user.full_name, otp)
@@ -102,12 +103,31 @@ def update_user_profile(data: schemas.UserProfileUpdate, user: models.User = Dep
         d = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
         if d:
             if data.specialization: d.specialization = data.specialization
-            if data.license_number: d.license_number = data.license_number
     if user.role == "organization":
         h = db.query(models.Hospital).filter(models.Hospital.owner_id == user.id).first()
         if h and data.phone_number: h.phone_number = data.phone_number
     db.commit()
     return {"message": "Profile updated successfully"}
+
+@router.delete("/me")
+def delete_account(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        if user.role == "doctor":
+            d = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+            if d: db.delete(d)
+        elif user.role == "organization":
+            h = db.query(models.Hospital).filter(models.Hospital.owner_id == user.id).first()
+            if h: db.delete(h)
+        elif user.role == "patient":
+            p = db.query(models.Patient).filter(models.Patient.user_id == user.id).first()
+            if p: db.delete(p)
+            
+        db.delete(user)
+        db.commit()
+        return {"message": "Account deleted successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Deletion failed: {str(e)}")
 
 @router.get("/hospitals")
 def get_verified_hospitals(db: Session = Depends(get_db)):

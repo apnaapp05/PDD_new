@@ -30,4 +30,4 @@ EMAIL_PASSWORD = _raw_password.replace(" ", "")
 
 EMAIL_FROM_NAME = os.getenv("EMAIL_FROM_NAME", "Al-Shifa Dental System")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@system.com")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "Admin@123")

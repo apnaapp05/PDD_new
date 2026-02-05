@@ -47,19 +47,19 @@ export default function AdminLogin() {
       </div>
 
       <form onSubmit={handleLogin} className="space-y-4">
-        {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded flex items-center gap-2"><AlertCircle className="h-4 w-4"/> {error}</div>}
-        
+        {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded flex items-center gap-2"><AlertCircle className="h-4 w-4" /> {error}</div>}
+
         <div className="space-y-1">
           <label className="text-xs font-bold uppercase text-slate-500">Email</label>
-          <Input type="email" placeholder="admin@system" value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} required />
-        </div>
-        
-        <div className="space-y-1">
-          <label className="text-xs font-bold uppercase text-slate-500">Password</label>
-          <Input type="password" placeholder="••••••••" value={form.password} onChange={(e) => setForm({...form, password: e.target.value})} required />
+          <Input type="email" placeholder="admin@system" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
         </div>
 
-        <Button className="w-full bg-slate-900 hover:bg-slate-800 font-bold" disabled={loading}>
+        <div className="space-y-1">
+          <label className="text-xs font-bold uppercase text-slate-500">Password</label>
+          <Input type="password" placeholder="••••••••" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+        </div>
+
+        <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold" disabled={loading}>
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Authenticate"}
         </Button>
       </form>

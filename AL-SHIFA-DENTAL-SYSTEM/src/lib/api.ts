@@ -23,8 +23,9 @@ export const AuthAPI = {
   register: (d: any) => api.post("/auth/register", d),
   verifyOtp: (d: any) => api.post("/auth/verify-otp", d),
   getMe: () => api.get("/auth/me"),
-  updateProfile: (d: any) => api.put("/auth/profile", d), // ADDED
+  updateProfile: (d: any) => api.put("/auth/profile", d),
   getVerifiedHospitals: () => api.get("/auth/hospitals"),
+  deleteAccount: () => api.delete("/auth/me"),
 };
 
 export const DoctorAPI = {
@@ -70,6 +71,7 @@ export const AdminAPI = {
   getOrganizations: () => api.get("/admin/organizations"),
   getPatients: () => api.get("/admin/patients"),
   getPatientDetails: (id: number) => api.get(`/admin/patients/${id}`), // NEW
+  getDoctorDetails: (id: number) => api.get(`/admin/doctors/${id}`),   // NEW
   getPendingRequests: () => api.get("/admin/pending-requests"),        // NEW
   approveAccount: (id: number, type: string) => api.post(`/admin/approve-account/${id}?type=${type}`),
   deleteEntity: (id: number, type: string) => api.delete(`/admin/delete/${type}/${id}`),

@@ -11,7 +11,7 @@ import { Clock, Coffee, Save, CheckCircle, User, Briefcase, Phone, Mail, MapPin 
 export default function DoctorProfilePage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  
+
   // --- Profile State ---
   const [profileData, setProfileData] = useState({
     full_name: "",
@@ -19,7 +19,7 @@ export default function DoctorProfilePage() {
     phone_number: "",
     address: "",
     specialization: "",
-    license_number: ""
+    dob: ""
   });
 
   // --- Clinical State ---
@@ -40,7 +40,7 @@ export default function DoctorProfilePage() {
           phone_number: u.phone_number || "",
           address: u.address || "",
           specialization: u.specialization || "",
-          license_number: u.license_number || ""
+          dob: u.dob || ""
         });
 
         // 2. Get Config
@@ -107,35 +107,43 @@ export default function DoctorProfilePage() {
               <CardDescription>Your details visible to patients and administrators.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium flex items-center gap-2"><User className="w-4 h-4"/> Full Name</label>
-                  <Input 
-                    value={profileData.full_name} 
-                    onChange={(e) => setProfileData({...profileData, full_name: e.target.value})} 
+                  <label className="text-sm font-medium flex items-center gap-2"><User className="w-4 h-4" /> Full Name</label>
+                  <Input
+                    value={profileData.full_name}
+                    onChange={(e) => setProfileData({ ...profileData, full_name: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium flex items-center gap-2"><Mail className="w-4 h-4"/> Email</label>
-                  <Input 
-                    value={profileData.email} 
-                    onChange={(e) => setProfileData({...profileData, email: e.target.value})} 
+                  <label className="text-sm font-medium flex items-center gap-2"><Mail className="w-4 h-4" /> Email</label>
+                  <Input
+                    value={profileData.email}
+                    onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium flex items-center gap-2"><Phone className="w-4 h-4"/> Phone Number</label>
-                  <Input 
-                    value={profileData.phone_number} 
-                    onChange={(e) => setProfileData({...profileData, phone_number: e.target.value})}
+                  <label className="text-sm font-medium flex items-center gap-2"><Phone className="w-4 h-4" /> Phone Number</label>
+                  <Input
+                    value={profileData.phone_number}
+                    onChange={(e) => setProfileData({ ...profileData, phone_number: e.target.value })}
                     placeholder="+91..."
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium flex items-center gap-2"><MapPin className="w-4 h-4"/> Address</label>
-                  <Input 
-                    value={profileData.address} 
-                    onChange={(e) => setProfileData({...profileData, address: e.target.value})} 
+                  <label className="text-sm font-medium flex items-center gap-2">Date of Birth</label>
+                  <Input
+                    type="date"
+                    value={profileData.dob ? profileData.dob.split('T')[0] : ""}
+                    onChange={(e) => setProfileData({ ...profileData, dob: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <label className="text-sm font-medium flex items-center gap-2"><MapPin className="w-4 h-4" /> Address</label>
+                  <Input
+                    value={profileData.address}
+                    onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
                   />
                 </div>
               </div>
@@ -144,24 +152,30 @@ export default function DoctorProfilePage() {
                 <h3 className="text-lg font-semibold mb-4">Professional Credentials</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium flex items-center gap-2"><Briefcase className="w-4 h-4"/> Specialization</label>
-                    <Input 
-                      value={profileData.specialization} 
-                      onChange={(e) => setProfileData({...profileData, specialization: e.target.value})}
+                    <label className="text-sm font-medium flex items-center gap-2"><Briefcase className="w-4 h-4" /> Specialization</label>
+                    <Input
+                      value={profileData.specialization}
+                      onChange={(e) => setProfileData({ ...profileData, specialization: e.target.value })}
                       placeholder="e.g. Orthodontist"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium flex items-center gap-2"><CheckCircle className="w-4 h-4"/> License Number</label>
-                    <Input 
-                      value={profileData.license_number} 
-                      onChange={(e) => setProfileData({...profileData, license_number: e.target.value})} 
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="flex justify-end pt-4">
+              <div className="flex justify-between w-full pt-6">
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    if (confirm("CRITICAL WARNING: This will permanently delete your account, your data, and cannot be undone. Are you sure?")) {
+                      AuthAPI.deleteAccount().then(() => {
+                        window.location.href = "/";
+                      }).catch(() => alert("Failed to delete account"));
+                    }
+                  }}
+                >
+                  Delete Account
+                </Button>
+
                 <Button onClick={handleSaveProfile} disabled={loading}>
                   {loading ? "Saving..." : success ? "Saved!" : "Save Changes"}
                 </Button>
@@ -179,7 +193,7 @@ export default function DoctorProfilePage() {
                 <Clock className="h-5 w-5 mr-2 text-blue-600" />
                 Scheduling Strategy
               </h3>
-              
+
               <div className="space-y-4">
                 <label className={`flex items-start p-4 border rounded-lg cursor-pointer transition-all ${mode === "continuous" ? "border-blue-500 bg-blue-50" : "border-slate-200"}`}>
                   <input type="radio" name="mode" className="mt-1" checked={mode === "continuous"} onChange={() => { setMode("continuous"); setBreakDuration(0); }} />
@@ -209,14 +223,14 @@ export default function DoctorProfilePage() {
                 <Coffee className="h-5 w-5 mr-2 text-purple-600" />
                 Time Allocation
               </h3>
-              
+
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Consultation Duration (mins)
                   </label>
-                  <Input 
-                    type="number" 
+                  <Input
+                    type="number"
                     value={workDuration}
                     onChange={(e) => setWorkDuration(Number(e.target.value))}
                   />
@@ -227,8 +241,8 @@ export default function DoctorProfilePage() {
                     <label className="block text-sm font-medium text-slate-700 mb-2">
                       Break / Buffer Time (mins)
                     </label>
-                    <Input 
-                      type="number" 
+                    <Input
+                      type="number"
                       value={breakDuration}
                       onChange={(e) => setBreakDuration(Number(e.target.value))}
                       className="border-purple-200 bg-purple-50"
@@ -237,7 +251,7 @@ export default function DoctorProfilePage() {
                 )}
 
                 <div className="pt-4 p-4 bg-slate-50 rounded-lg text-sm text-slate-600">
-                  <span className="font-bold">Result:</span> Your AI will generate slots every 
+                  <span className="font-bold">Result:</span> Your AI will generate slots every
                   <span className="font-bold text-blue-600"> {workDuration + breakDuration} minutes</span>.
                 </div>
               </div>
@@ -246,7 +260,7 @@ export default function DoctorProfilePage() {
 
           <div className="flex justify-end mt-6">
             <Button onClick={handleSaveConfig} disabled={loading} className="w-40">
-              {loading ? "Saving..." : success ? <><CheckCircle className="mr-2 h-4 w-4"/> Saved</> : <><Save className="mr-2 h-4 w-4"/> Save Config</>}
+              {loading ? "Saving..." : success ? <><CheckCircle className="mr-2 h-4 w-4" /> Saved</> : <><Save className="mr-2 h-4 w-4" /> Save Config</>}
             </Button>
           </div>
         </TabsContent>

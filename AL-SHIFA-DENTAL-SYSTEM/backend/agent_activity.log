@@ -1723,3 +1723,167 @@
 2026-02-05 17:34:14,472 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
 2026-02-05 17:34:14,472 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
 2026-02-05 17:34:14,473 | INFO | Scheduler started
+2026-02-05 17:34:19,744 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 17:34:19,744 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 17:34:19,752 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 17:34:19,752 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 17:34:19,752 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 17:34:19,752 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 17:34:19,752 | INFO | Scheduler started
+2026-02-05 17:49:19,747 | INFO | Running job "AgentScheduler.check_upcoming_appointments (trigger: interval[0:15:00], next run at: 2026-02-05 17:49:19 IST)" (scheduled at 2026-02-05 17:49:19.744949+05:30)
+2026-02-05 17:49:19,747 | INFO | Job "AgentScheduler.check_upcoming_appointments (trigger: interval[0:15:00], next run at: 2026-02-05 17:49:19 IST)" executed successfully
+2026-02-05 18:06:36,554 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:06:36,557 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:06:36,562 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:06:36,562 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 18:06:36,562 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 18:06:36,562 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 18:06:36,562 | INFO | Scheduler started
+2026-02-05 18:07:37,193 | INFO | Connecting to SMTP: smtp.gmail.com:465
+2026-02-05 18:07:40,520 | INFO | \u2705 Email sent successfully to syedakhiyarhussain@gmail.com
+2026-02-05 18:13:17,163 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:13:17,163 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:13:17,170 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:13:17,170 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 18:13:17,170 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 18:13:17,170 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 18:13:17,170 | INFO | Scheduler started
+2026-02-05 18:14:49,383 | INFO | Connecting to SMTP: smtp.gmail.com:465
+2026-02-05 18:14:52,867 | INFO | \u2705 Email sent successfully to syedakhiyarhussain@gmail.com
+2026-02-05 18:16:51,180 | INFO | Connecting to SMTP: smtp.gmail.com:465
+2026-02-05 18:16:55,372 | INFO | \u2705 Email sent successfully to syedakhiyarhussain@gmail.com
+2026-02-05 18:21:01,671 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:01,671 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:01,676 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:01,676 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 18:21:01,676 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 18:21:01,676 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 18:21:01,676 | INFO | Scheduler started
+2026-02-05 18:21:06,413 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:06,413 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:06,418 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:06,418 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 18:21:06,418 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 18:21:06,418 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 18:21:06,418 | INFO | Scheduler started
+2026-02-05 18:21:11,098 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:11,098 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:11,104 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:11,104 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 18:21:11,104 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 18:21:11,104 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 18:21:11,104 | INFO | Scheduler started
+2026-02-05 18:21:16,233 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:16,233 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:16,237 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:16,237 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 18:21:16,237 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 18:21:16,237 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 18:21:16,237 | INFO | Scheduler started
+2026-02-05 18:21:20,962 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:20,962 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:20,968 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:20,968 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 18:21:20,968 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 18:21:20,968 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 18:21:20,968 | INFO | Scheduler started
+2026-02-05 18:21:45,531 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:45,531 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:45,537 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:21:45,537 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 18:21:45,537 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 18:21:45,539 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 18:21:45,539 | INFO | Scheduler started
+2026-02-05 18:36:45,544 | INFO | Running job "AgentScheduler.check_upcoming_appointments (trigger: interval[0:15:00], next run at: 2026-02-05 18:36:45 IST)" (scheduled at 2026-02-05 18:36:45.531001+05:30)
+2026-02-05 18:36:45,544 | INFO | Job "AgentScheduler.check_upcoming_appointments (trigger: interval[0:15:00], next run at: 2026-02-05 18:36:45 IST)" executed successfully
+2026-02-05 18:37:33,536 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:37:33,536 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:37:33,542 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:37:33,542 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 18:37:33,542 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 18:37:33,542 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 18:37:33,542 | INFO | Scheduler started
+2026-02-05 18:37:41,776 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:37:41,776 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:37:41,782 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 18:37:41,782 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 18:37:41,782 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 18:37:41,782 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 18:37:41,785 | INFO | Scheduler started
+2026-02-05 18:52:41,780 | INFO | Running job "AgentScheduler.check_upcoming_appointments (trigger: interval[0:15:00], next run at: 2026-02-05 18:52:41 IST)" (scheduled at 2026-02-05 18:52:41.776343+05:30)
+2026-02-05 18:52:41,780 | INFO | Job "AgentScheduler.check_upcoming_appointments (trigger: interval[0:15:00], next run at: 2026-02-05 18:52:41 IST)" executed successfully
+2026-02-05 19:07:41,780 | INFO | Running job "AgentScheduler.check_low_stock (trigger: interval[0:30:00], next run at: 2026-02-05 19:37:41 IST)" (scheduled at 2026-02-05 19:07:41.776343+05:30)
+2026-02-05 19:07:41,786 | INFO | Running job "AgentScheduler.check_upcoming_appointments (trigger: interval[0:15:00], next run at: 2026-02-05 19:07:41 IST)" (scheduled at 2026-02-05 19:07:41.776343+05:30)
+2026-02-05 19:07:41,786 | INFO | Job "AgentScheduler.check_upcoming_appointments (trigger: interval[0:15:00], next run at: 2026-02-05 19:07:41 IST)" executed successfully
+2026-02-05 19:07:41,790 | INFO | Job "AgentScheduler.check_low_stock (trigger: interval[0:30:00], next run at: 2026-02-05 19:37:41 IST)" executed successfully
+2026-02-05 19:22:41,792 | INFO | Running job "AgentScheduler.check_upcoming_appointments (trigger: interval[0:15:00], next run at: 2026-02-05 19:37:41 IST)" (scheduled at 2026-02-05 19:22:41.776343+05:30)
+2026-02-05 19:22:41,792 | INFO | Job "AgentScheduler.check_upcoming_appointments (trigger: interval[0:15:00], next run at: 2026-02-05 19:37:41 IST)" executed successfully
+2026-02-05 19:28:36,920 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:28:36,920 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:28:36,920 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:28:36,920 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 19:28:36,920 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 19:28:36,920 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 19:28:36,920 | INFO | Scheduler started
+2026-02-05 19:29:19,399 | INFO | Connecting to SMTP: smtp.gmail.com:465
+2026-02-05 19:29:23,132 | INFO | \u2705 Email sent successfully to syedakhiyarhussain@gmail.com
+2026-02-05 19:33:49,575 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:33:49,576 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:33:49,577 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:33:49,577 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 19:33:49,577 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 19:33:49,577 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 19:33:49,581 | INFO | Scheduler started
+2026-02-05 19:38:11,912 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:38:11,912 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:38:11,916 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:38:11,916 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 19:38:11,916 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 19:38:11,916 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 19:38:11,916 | INFO | Scheduler started
+2026-02-05 19:40:45,843 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:40:45,843 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:40:45,848 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:40:45,848 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 19:40:45,848 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 19:40:45,848 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 19:40:45,848 | INFO | Scheduler started
+2026-02-05 19:44:58,047 | INFO | Connecting to SMTP: smtp.gmail.com:465
+2026-02-05 19:45:01,849 | INFO | \u2705 Email sent successfully to akhiyarhussains1769.sse@saveetha.com
+2026-02-05 19:46:13,742 | INFO | Connecting to SMTP: smtp.gmail.com:465
+2026-02-05 19:46:20,794 | INFO | \u2705 Email sent successfully to numairazman32@gmail.com
+2026-02-05 19:50:28,719 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:50:28,720 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:50:28,725 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:50:28,725 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 19:50:28,725 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 19:50:28,725 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 19:50:28,725 | INFO | Scheduler started
+2026-02-05 19:50:36,279 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:50:36,280 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:50:36,296 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:50:36,296 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 19:50:36,297 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 19:50:36,297 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 19:50:36,297 | INFO | Scheduler started
+2026-02-05 19:51:50,776 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:51:50,776 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:51:50,782 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:51:50,782 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 19:51:50,782 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 19:51:50,782 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 19:51:50,782 | INFO | Scheduler started
+2026-02-05 19:53:54,176 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:53:54,176 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:53:54,184 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:53:54,184 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 19:53:54,184 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 19:53:54,184 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 19:53:54,185 | INFO | Scheduler started
+2026-02-05 19:55:36,012 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:55:36,015 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:55:36,017 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:55:36,017 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-05 19:55:36,017 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-05 19:55:36,017 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-05 19:55:36,017 | INFO | Scheduler started

@@ -16,6 +16,7 @@ class User(Base):
     is_email_verified = Column(Boolean, default=False)
     otp_code = Column(String, nullable=True)
     otp_expires_at = Column(DateTime, nullable=True)
+    dob = Column(DateTime, nullable=True)  # Added Date of Birth
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class Organization(Base):
@@ -50,7 +51,7 @@ class Doctor(Base):
     hospital_id = Column(Integer, ForeignKey("hospitals.id"))
     specialization = Column(String)
     experience = Column(Integer)
-    license_number = Column(String) # ✅ Added License Number
+
     is_verified = Column(Boolean, default=True)
     scheduling_config = Column(Text, nullable=True) # JSON string
     

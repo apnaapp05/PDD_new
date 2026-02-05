@@ -41,14 +41,16 @@ export default function PatientProfile() {
 
       const payload = {
         full_name: formData.full_name,
-        age: isNaN(safeAge) ? 0 : safeAge, // Prevent NaN error
+        age: isNaN(safeAge) ? 0 : safeAge,
         gender: formData.gender || "",
         address: formData.address || "",
-        blood_group: formData.blood_group || ""
+        blood_group: formData.blood_group || "",
+        phone_number: formData.phone_number || "",
+        dob: formData.dob || null
       };
-      
+
       await PatientAPI.updateProfile(payload);
-      await fetchProfile(); 
+      await fetchProfile();
       setIsEditing(false);
     } catch (error) {
       console.error("Failed to update profile", error);
@@ -87,7 +89,7 @@ export default function PatientProfile() {
             <p className="text-slate-500">Patient ID: #{profile.id}</p>
           </div>
         </div>
-        
+
         {!isEditing ? (
           <Button onClick={() => setIsEditing(true)} variant="outline" className="flex items-center gap-2">
             <Edit2 className="h-4 w-4" />
@@ -122,15 +124,32 @@ export default function PatientProfile() {
               </div>
             </div>
 
+            {/* Phone */}
+            <div className="flex items-center gap-3">
+              <Phone className="h-5 w-5 text-green-500" />
+              <div className="w-full">
+                <p className="text-sm font-bold text-slate-700 mb-1">Phone Number</p>
+                {isEditing ? (
+                  <Input
+                    value={formData.phone_number || ""}
+                    onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+                    placeholder="10 digits"
+                  />
+                ) : (
+                  <p className="text-slate-600">{profile.phone_number || "Not set"}</p>
+                )}
+              </div>
+            </div>
+
             {/* Address */}
             <div className="flex items-start gap-3">
               <MapPin className="h-5 w-5 text-red-500 mt-1" />
               <div className="w-full">
                 <p className="text-sm font-bold text-slate-700 mb-1">Address</p>
                 {isEditing ? (
-                  <Input 
-                    value={formData.address || ""} 
-                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                  <Input
+                    value={formData.address || ""}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                     placeholder="Enter your address"
                   />
                 ) : (
@@ -147,34 +166,40 @@ export default function PatientProfile() {
             <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Personal Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            
+
             {/* Name (Editable) */}
             {isEditing && (
-               <div className="flex items-center gap-3">
-               <User className="h-5 w-5 text-gray-500" />
-               <div className="w-full">
-                 <p className="text-sm font-bold text-slate-700 mb-1">Full Name</p>
-                 <Input 
-                   value={formData.full_name} 
-                   onChange={(e) => setFormData({...formData, full_name: e.target.value})}
-                 />
-               </div>
-             </div>
+              <div className="flex items-center gap-3">
+                <User className="h-5 w-5 text-gray-500" />
+                <div className="w-full">
+                  <p className="text-sm font-bold text-slate-700 mb-1">Full Name</p>
+                  <Input
+                    value={formData.full_name}
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                  />
+                </div>
+              </div>
             )}
 
-            {/* Age */}
+            {/* DOB & Age */}
             <div className="flex items-center gap-3">
               <Calendar className="h-5 w-5 text-purple-500" />
               <div className="w-full">
-                <p className="text-sm font-bold text-slate-700 mb-1">Age</p>
+                <p className="text-sm font-bold text-slate-700 mb-1">Date of Birth</p>
                 {isEditing ? (
-                   <Input 
-                   type="number"
-                   value={formData.age} 
-                   onChange={(e) => setFormData({...formData, age: e.target.value})}
-                 />
+                  <div className="flex gap-2">
+                    <Input
+                      type="date"
+                      value={formData.dob ? formData.dob.split('T')[0] : ""}
+                      onChange={(e) => setFormData({ ...formData, dob: e.target.value, age: new Date().getFullYear() - new Date(e.target.value).getFullYear() })}
+                    />
+                    <span className="text-xs text-slate-400 self-center">Age: {formData.age}</span>
+                  </div>
                 ) : (
-                  <p className="text-slate-600">{profile.age} Years</p>
+                  <p className="text-slate-600">
+                    {profile.dob ? new Date(profile.dob).toLocaleDateString() : "Not set"}
+                    <span className="text-slate-400 ml-2">({profile.age} Years)</span>
+                  </p>
                 )}
               </div>
             </div>
@@ -185,19 +210,20 @@ export default function PatientProfile() {
               <div className="w-full">
                 <p className="text-sm font-bold text-slate-700 mb-1">Gender</p>
                 {isEditing ? (
-                  <Select 
-                    value={formData.gender} 
-                    onValueChange={(val) => setFormData({...formData, gender: val})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Gender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Male">Male</SelectItem>
-                      <SelectItem value="Female">Female</SelectItem>
-                      <SelectItem value="Other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2 mt-1">
+                    {["Male", "Female"].map((g) => (
+                      <div
+                        key={g}
+                        onClick={() => setFormData({ ...formData, gender: g })}
+                        className={`px-4 py-2 rounded-lg border cursor-pointer text-sm font-medium transition-all ${formData.gender === g
+                          ? "bg-blue-600 text-white border-blue-600 shadow-md"
+                          : "bg-white text-slate-600 border-slate-200 hover:border-blue-400"
+                          }`}
+                      >
+                        {g}
+                      </div>
+                    ))}
+                  </div>
                 ) : (
                   <p className="text-slate-600">{profile.gender}</p>
                 )}
@@ -210,24 +236,24 @@ export default function PatientProfile() {
               <div className="w-full">
                 <p className="text-sm font-bold text-slate-700 mb-1">Blood Group</p>
                 {isEditing ? (
-                   <Select 
-                   value={formData.blood_group || ""} 
-                   onValueChange={(val) => setFormData({...formData, blood_group: val})}
-                 >
-                   <SelectTrigger>
-                     <SelectValue placeholder="Select Blood Group" />
-                   </SelectTrigger>
-                   <SelectContent>
-                     <SelectItem value="A+">A+</SelectItem>
-                     <SelectItem value="A-">A-</SelectItem>
-                     <SelectItem value="B+">B+</SelectItem>
-                     <SelectItem value="B-">B-</SelectItem>
-                     <SelectItem value="AB+">AB+</SelectItem>
-                     <SelectItem value="AB-">AB-</SelectItem>
-                     <SelectItem value="O+">O+</SelectItem>
-                     <SelectItem value="O-">O-</SelectItem>
-                   </SelectContent>
-                 </Select>
+                  <Select
+                    value={formData.blood_group || ""}
+                    onValueChange={(val) => setFormData({ ...formData, blood_group: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Blood Group" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="A+">A+</SelectItem>
+                      <SelectItem value="A-">A-</SelectItem>
+                      <SelectItem value="B+">B+</SelectItem>
+                      <SelectItem value="B-">B-</SelectItem>
+                      <SelectItem value="AB+">AB+</SelectItem>
+                      <SelectItem value="AB-">AB-</SelectItem>
+                      <SelectItem value="O+">O+</SelectItem>
+                      <SelectItem value="O-">O-</SelectItem>
+                    </SelectContent>
+                  </Select>
                 ) : (
                   <p className="text-slate-600">{profile.blood_group || "N/A"}</p>
                 )}
@@ -235,6 +261,24 @@ export default function PatientProfile() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="flex justify-start px-4">
+        <Button
+          variant="destructive"
+          className="w-full md:w-auto"
+          onClick={() => {
+            if (confirm("CRITICAL WARNING: This will permanently delete your account, your history, and cannot be undone. Are you sure?")) {
+              import("@/lib/api").then(mod => {
+                mod.AuthAPI.deleteAccount().then(() => {
+                  window.location.href = "/";
+                }).catch(() => alert("Failed to delete account"));
+              })
+            }
+          }}
+        >
+          Delete My Account
+        </Button>
       </div>
     </div>
   );

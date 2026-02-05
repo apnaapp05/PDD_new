@@ -16,7 +16,25 @@ def get_admin_stats(user: models.User = Depends(get_current_user), db: Session =
 def get_all_doctors(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "admin": raise HTTPException(403)
     doctors = db.query(models.Doctor).all()
-    return [{"id": d.id, "name": d.user.full_name if d.user else "Unknown", "email": d.user.email if d.user else "", "specialization": d.specialization, "license": d.license_number, "is_verified": d.is_verified, "hospital_name": d.hospital.name if d.hospital else "N/A"} for d in doctors]
+    return [{"id": d.id, "name": d.user.full_name if d.user else "Unknown", "email": d.user.email if d.user else "", "specialization": d.specialization, "is_verified": d.is_verified, "hospital_name": d.hospital.name if d.hospital else "N/A"} for d in doctors]
+
+@router.get("/doctors/{id}")
+def get_admin_doctor_details(id: int, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if user.role != "admin": raise HTTPException(403)
+    d = db.query(models.Doctor).filter(models.Doctor.id == id).first()
+    if not d: raise HTTPException(404, "Doctor not found")
+    return {
+        "id": d.id,
+        "full_name": d.user.full_name if d.user else "Unknown",
+        "email": d.user.email if d.user else "",
+        "phone": d.user.phone_number or "N/A" if d.user else "N/A",
+        "dob": d.user.dob.strftime("%Y-%m-%d") if d.user and d.user.dob else "N/A",
+        "address": d.user.address or "N/A" if d.user else "N/A",
+        "specialization": d.specialization,
+        "experience": d.experience or 0,
+        "hospital_name": d.hospital.name if d.hospital else "N/A",
+        "created_at": d.user.created_at.strftime("%Y-%m-%d") if d.user and d.user.created_at else "N/A"
+    }
 
 @router.get("/organizations")
 def get_all_organizations(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -41,7 +59,7 @@ def get_pending_requests(user: models.User = Depends(get_current_user), db: Sess
     pending_orgs = db.query(models.Hospital).filter(models.Hospital.is_verified == False).all()
     results = []
     for d in pending_docs:
-        results.append({"id": d.id, "type": "doctor", "name": d.user.full_name, "email": d.user.email, "info": f"Spec: {d.specialization} | Lic: {d.license_number}", "date": d.user.created_at})
+        results.append({"id": d.id, "type": "doctor", "name": d.user.full_name, "email": d.user.email, "info": f"Spec: {d.specialization}", "date": d.user.created_at})
     for h in pending_orgs:
         results.append({"id": h.id, "type": "organization", "name": h.name, "email": h.owner.email, "info": f"Address: {h.address}", "date": h.owner.created_at})
     return results
