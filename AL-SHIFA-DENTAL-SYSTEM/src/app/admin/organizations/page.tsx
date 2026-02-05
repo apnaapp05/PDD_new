@@ -16,14 +16,14 @@ export default function AdminOrganizations() {
     try {
       const res = await AdminAPI.getOrganizations();
       setOrgs(res.data);
-    } catch (e) { console.error(e); } 
+    } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
 
   useEffect(() => { fetchOrgs(); }, []);
 
   const handleVerify = async (id: number) => {
-    if(!confirm("Approve this organization and its location?")) return;
+    if (!confirm("Approve this organization and its location?")) return;
     try {
       await AdminAPI.approveAccount(id, "organization");
       fetchOrgs();
@@ -31,7 +31,7 @@ export default function AdminOrganizations() {
   };
 
   const handleDelete = async (id: number) => {
-    if(!confirm("Are you sure? This will delete the organization permanently.")) return;
+    if (!confirm("Are you sure? This will delete the organization permanently.")) return;
     try {
       await AdminAPI.deleteEntity(id, "organization");
       fetchOrgs();
@@ -39,11 +39,11 @@ export default function AdminOrganizations() {
   };
 
   const openMap = (lat: number, lng: number) => {
-    if(lat && lng) window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, "_blank");
+    if (lat && lng) window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, "_blank");
   };
 
-  const filteredOrgs = orgs.filter(o => 
-    o.name.toLowerCase().includes(search.toLowerCase()) || 
+  const filteredOrgs = orgs.filter(o =>
+    o.name.toLowerCase().includes(search.toLowerCase()) ||
     o.address?.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -55,23 +55,23 @@ export default function AdminOrganizations() {
           <p className="text-sm text-slate-500">Manage clinics and location approvals</p>
         </div>
         <div className="relative w-72">
-           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-           <Input 
-             placeholder="Search..." 
-             className="pl-9 bg-slate-50 border-slate-200 focus:bg-white"
-             value={search}
-             onChange={(e) => setSearch(e.target.value)}
-           />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input
+            placeholder="Search..."
+            className="pl-9 bg-slate-50 border-slate-200 focus:bg-white"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
       </div>
 
       <div className="grid gap-4">
         {loading ? (
-          <div className="flex justify-center py-20"><Loader2 className="animate-spin text-slate-400 h-8 w-8"/></div>
+          <div className="flex justify-center py-20"><Loader2 className="animate-spin text-slate-400 h-8 w-8" /></div>
         ) : filteredOrgs.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300">
-             <Building2 className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-             <p className="text-slate-500">No organizations found.</p>
+            <Building2 className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+            <p className="text-slate-500">No organizations found.</p>
           </div>
         ) : (
           filteredOrgs.map((org) => (
@@ -87,28 +87,24 @@ export default function AdminOrganizations() {
                   </h3>
                   <div className="space-y-1 mt-1">
                     <p className="text-xs text-slate-500 flex items-center gap-1.5">
-                        <MapPin className="h-3.5 w-3.5 text-slate-400" /> {org.address || "No address"}
+                      <MapPin className="h-3.5 w-3.5 text-slate-400" /> {org.address || "No address"}
                     </p>
                     {org.pending_address && (
-                        <p className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 flex items-center gap-1 w-fit">
-                            <MapPin className="h-3 w-3" /> New Location Requested: {org.pending_address}
-                            <button onClick={() => openMap(org.pending_lat, org.pending_lng)} className="ml-2 hover:underline flex items-center">
-                                View <ExternalLink className="h-3 w-3 ml-1"/>
-                            </button>
-                        </p>
+                      <p className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 flex items-center gap-1 w-fit">
+                        <MapPin className="h-3 w-3" /> New Location Requested: {org.pending_address}
+                        <button onClick={() => openMap(org.pending_lat, org.pending_lng)} className="ml-2 hover:underline flex items-center">
+                          View <ExternalLink className="h-3 w-3 ml-1" />
+                        </button>
+                      </p>
                     )}
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-3 w-full md:w-auto pl-19 md:pl-0">
-                {(!org.is_verified || org.pending_address) && (
-                  <Button size="sm" onClick={() => handleVerify(org.id)} className="bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200 shadow-lg">
-                    {org.pending_address ? "Approve Location" : "Verify Account"}
-                  </Button>
-                )}
+                {/* Verification/Approval Button Removed */}
                 <Button size="sm" variant="destructive" onClick={() => handleDelete(org.id)} className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200">
-                   <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             </Card>

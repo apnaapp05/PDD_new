@@ -13,6 +13,7 @@ import models, schemas
 from database import get_db
 from core.security import get_current_user
 from services.analytics_service import AnalyticsService
+from services.inventory_service import InventoryService
 
 router = APIRouter(prefix="/doctor", tags=["Doctor"])
 
@@ -86,9 +87,11 @@ def complete_appointment(id: int, user: models.User = Depends(get_current_user),
     # DEDUCT STOCK BASED ON RECIPE
     t = db.query(models.Treatment).filter(models.Treatment.name == appt.treatment_type, models.Treatment.hospital_id == doc.hospital_id).first()
     if t:
+        inv_service = InventoryService(db, doc.id)
         for l in t.required_items:
              if l.item:
-                l.item.quantity = max(0, l.item.quantity - l.quantity_required)
+                # Use service to handle deduction + alerts
+                inv_service.consume_item(l.item.id, l.quantity_required)
     
     appt.status = "completed"; db.commit()
     return {"message": "Completed", "status": "completed"}

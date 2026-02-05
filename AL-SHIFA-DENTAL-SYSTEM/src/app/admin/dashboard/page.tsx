@@ -14,12 +14,10 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     try {
       // Fetch Stats and Pending Requests in parallel
-      const [statsRes, pendingRes] = await Promise.all([
-        AdminAPI.getStats(), // Assumes existing getStats endpoint
-        AdminAPI.getPendingRequests()
+      const [statsRes] = await Promise.all([
+        AdminAPI.getStats()
       ]);
       setStats(statsRes.data);
-      setPendingRequests(pendingRes.data);
     } catch (error) {
       console.error("Failed to load dashboard data", error);
     } finally {
@@ -55,7 +53,7 @@ export default function AdminDashboard() {
             <div className="text-2xl font-bold">{stats.doctors}</div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-slate-600">Total Patients</CardTitle>
@@ -76,52 +74,9 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">Pending Requests</CardTitle>
-            <Clock className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{pendingRequests.length}</div>
-          </CardContent>
-        </Card>
       </div>
 
-      {/* Pending Approvals Section */}
-      <div className="mt-8">
-        <h2 className="text-xl font-semibold mb-4 text-slate-800">Pending Approvals</h2>
-        
-        {loading ? (
-          <p>Loading...</p>
-        ) : pendingRequests.length === 0 ? (
-          <div className="p-8 border rounded-lg bg-slate-50 text-center text-slate-500">
-            No pending requests found.
-          </div>
-        ) : (
-          <div className="grid gap-4">
-            {pendingRequests.map((req) => (
-              <Card key={`${req.type}-${req.id}`} className="flex items-center justify-between p-4">
-                <div className="flex items-center gap-4">
-                  <div className={`p-2 rounded-full ${req.type === 'doctor' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
-                    {req.type === 'doctor' ? <Users className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-800">{req.name}</h3>
-                    <p className="text-sm text-slate-500">{req.type.toUpperCase()} • {req.email}</p>
-                    <p className="text-xs text-slate-400 mt-1">{req.info}</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                   <Button onClick={() => handleApprove(req.id, req.type)} size="sm" className="bg-green-600 hover:bg-green-700">
-                     <CheckCircle className="h-4 w-4 mr-2" />
-                     Approve
-                   </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Pending Approvals Section Removed (Auto-Verification Enabled) */}
     </div>
   );
 }

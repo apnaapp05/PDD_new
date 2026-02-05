@@ -1,6 +1,6 @@
 import React from 'react';
 import SmartAssistant from '@/components/chat/SmartAssistant';
-import KnowledgeUpload from '@/components/chat/KnowledgeUpload';
+
 import { Sparkles } from 'lucide-react';
 
 export default function AgentsPage() {
@@ -26,11 +26,9 @@ export default function AgentsPage() {
         </div>
 
         {/* Sidebar for Controls */}
+        {/* Sidebar for Controls - Removed KnowledgeUpload to prevent agent confusion */}
         <div className="w-80 flex flex-col gap-4">
-          {/* Upload Component */}
-          <KnowledgeUpload />
-
-          {/* Future controls can go here */}
+          {/* <KnowledgeUpload /> */}
         </div>
       </div>
     </div>

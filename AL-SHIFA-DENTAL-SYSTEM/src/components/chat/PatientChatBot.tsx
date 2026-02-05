@@ -5,6 +5,7 @@ import { Send, Bot, User, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AgentAPI } from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import { getChatStorageKey } from '@/lib/chatStorage';
 
 interface Message {
   role: 'user' | 'bot';
@@ -22,8 +23,24 @@ export default function PatientChatBot({ isFullPage = false }: { isFullPage?: bo
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Load history from localStorage on mount (user-specific)
+  useEffect(() => {
+    const chatKey = getChatStorageKey('chat_history_patient');
+    const saved = localStorage.getItem(chatKey);
+    if (saved) {
+      try {
+        setMessages(JSON.parse(saved));
+      } catch (e) { console.error("Failed to load chat history"); }
+    }
+  }, []);
+
+  // Save to localStorage whenever messages change (user-specific)
   // Auto-scroll to the bottom when messages change
   useEffect(() => {
+    if (messages.length > 1) { // Don't save if only initial message
+      const chatKey = getChatStorageKey('chat_history_patient');
+      localStorage.setItem(chatKey, JSON.stringify(messages));
+    }
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
@@ -74,8 +91,8 @@ export default function PatientChatBot({ isFullPage = false }: { isFullPage?: bo
 
               {/* Chat Bubble */}
               <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${m.role === 'user'
-                  ? 'bg-blue-600 text-white rounded-tr-none'
-                  : 'bg-white border border-slate-200 text-slate-700 rounded-tl-none'
+                ? 'bg-blue-600 text-white rounded-tr-none'
+                : 'bg-white border border-slate-200 text-slate-700 rounded-tl-none'
                 }`}>
                 <div className="whitespace-pre-wrap">{m.content}</div>
 
@@ -120,21 +137,35 @@ export default function PatientChatBot({ isFullPage = false }: { isFullPage?: bo
       </div>
 
       {/* Input Section */}
-      <div className="p-4 bg-white border-t border-slate-200 flex gap-3 items-center">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          placeholder="Ask me to book, cancel or analyze..."
-          className="flex-1 border border-slate-200 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 bg-slate-50 transition-all"
-        />
-        <Button
-          onClick={handleSend}
-          disabled={!query.trim() || loading}
-          className="h-12 w-12 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95"
-        >
-          <Send className="h-5 w-5" />
-        </Button>
+      <div className="p-4 bg-white border-t border-slate-200 flex flex-col gap-2">
+        <div className="flex gap-3 items-center">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            placeholder="Ask me to book, cancel or analyze..."
+            className="flex-1 border border-slate-200 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 bg-slate-50 transition-all"
+          />
+          <Button
+            onClick={handleSend}
+            disabled={!query.trim() || loading}
+            className="h-12 w-12 rounded-2xl bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95"
+          >
+            <Send className="h-5 w-5" />
+          </Button>
+        </div>
+        <div className="flex justify-center">
+          <button
+            onClick={() => {
+              const chatKey = getChatStorageKey('chat_history_patient');
+              localStorage.removeItem(chatKey);
+              setMessages([{ role: 'bot', content: 'Salam! I am your Al-Shifa Assistant. How can I help you today?' }]);
+            }}
+            className="text-[10px] text-slate-400 hover:text-red-500 transition-colors"
+          >
+            Clear Conversation History
+          </button>
+        </div>
       </div>
     </div>
   );

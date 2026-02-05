@@ -127,12 +127,6 @@ def create_appointment(appt: schemas.AppointmentCreate, user: models.User = Depe
     )
     db.add(new_appt); db.flush()
 
-    doc = db.query(models.Doctor).filter(models.Doctor.id == appt.doctor_id).first()
-    if doc:
-        treatment = db.query(models.Treatment).filter(models.Treatment.hospital_id == doc.hospital_id, models.Treatment.name == appt.reason).first()
-        amount = treatment.cost if treatment else 0
-        db.add(models.Invoice(appointment_id=new_appt.id, patient_id=patient.id, amount=amount, status="pending"))
-
     db.commit(); db.refresh(new_appt)
     return {"message": "Booked", "id": new_appt.id}
 

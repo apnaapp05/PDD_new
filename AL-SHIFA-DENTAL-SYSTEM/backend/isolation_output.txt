@@ -1,0 +1,31 @@
+Testing Chatbot Isolation...
+Logged in as Doctor 1 and Doctor 2
+
+--- Doctor 1 Chat ---
+Doctor 1: My favorite color is Blue.
+Agent: I'm happy to chat with you, but it seems like this conversation isn't related to the tasks and functions I have access to as the AI Clinical Manager for Al-Shifa Dental Clinic. Is there something else I can help you with, such as managing the clinic or answering a question about dental care?
+
+--- Doctor 2 Chat ---
+Doctor 2: What is my favorite color?
+Agent: I can't find any information about your favorite color.  If you want to discuss this topic, I'd be happy to chat with you about colors or anything else that interests you.
+Isolation Verified: Doctor 2 does not know Doctor 1's secret.
+
+--- Doctor 1 Check ---
+Doctor 1: What is my favorite color?
+Agent: You mentioned that your favorite color is Blue.
+Context Retrieval Verified: Doctor 1 remembers.
+
+--- Data Isolation (Appointments) ---
+Doctor 2 Agent: There are no appointments today.
+
+Testing Patient Chat Isolation...
+
+--- Patient 1 Chat ---
+Patient 1: I have a toothache on the left side.
+Agent: We're here to help you relieve your discomfort. Before we proceed, I'd like to ask for your cooperation. 
+
+You mentioned you have a toothache on the left side. Have you consulted a doctor before, or is this your first time visiting our clinic?
+
+--- Patient 2 Chat ---
+Patient 2: Where is my toothache?
+Agent: Could you be more specific about the location of your toothache?

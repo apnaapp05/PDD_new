@@ -25,18 +25,10 @@ export default function OrgDoctorsPage() {
     fetchDoctors();
   }, []);
 
-  const handleVerify = async (id: number) => {
-    if(!confirm("Are you sure you want to approve this doctor?")) return;
-    try {
-      await OrganizationAPI.verifyDoctor(id);
-      fetchDoctors(); // Refresh list
-    } catch (error) {
-      alert("Failed to verify doctor");
-    }
-  };
+  // handleVerify removed (Auto-Verified)
 
   const handleRemove = async (id: number) => {
-    if(!confirm("Warning: This will delete the doctor account permanently. Continue?")) return;
+    if (!confirm("Warning: This will delete the doctor account permanently. Continue?")) return;
     try {
       await OrganizationAPI.removeDoctor(id);
       fetchDoctors(); // Refresh list
@@ -53,17 +45,17 @@ export default function OrgDoctorsPage() {
           <p className="text-sm text-slate-500">Manage doctors and permissions</p>
         </div>
         <Button variant="outline" onClick={fetchDoctors} className="flex gap-2">
-           <RefreshCcw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          <RefreshCcw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
         </Button>
       </div>
 
       <div className="grid gap-4">
         {doctors.length === 0 && !loading ? (
-           <Card>
-             <CardContent className="p-8 text-center text-slate-500">
-               No doctors found. Doctors must sign up and select your hospital to appear here.
-             </CardContent>
-           </Card>
+          <Card>
+            <CardContent className="p-8 text-center text-slate-500">
+              No doctors found. Doctors must sign up and select your hospital to appear here.
+            </CardContent>
+          </Card>
         ) : (
           doctors.map((doc) => (
             <Card key={doc.id} className="flex flex-row items-center justify-between p-4 shadow-sm border border-slate-100 hover:bg-slate-50 transition-colors">
@@ -80,21 +72,16 @@ export default function OrgDoctorsPage() {
                     <span className="font-mono text-xs">{doc.license}</span>
                   </div>
                   <div className="mt-1">
-                     <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
-                        doc.status === 'Verified' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                     }`}>
-                        {doc.status}
-                     </span>
+                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${doc.status === 'Verified' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                      }`}>
+                      {doc.status}
+                    </span>
                   </div>
                 </div>
               </div>
 
               <div className="flex gap-2">
-                {doc.status !== 'Verified' && (
-                  <Button onClick={() => handleVerify(doc.id)} size="sm" className="bg-green-600 hover:bg-green-700 text-white">
-                    <UserCheck className="h-4 w-4 mr-2" /> Approve
-                  </Button>
-                )}
+                {/* Approve Button Removed (Auto-Verified) */}
                 <Button onClick={() => handleRemove(doc.id)} size="sm" variant="destructive">
                   <Trash2 className="h-4 w-4" />
                 </Button>

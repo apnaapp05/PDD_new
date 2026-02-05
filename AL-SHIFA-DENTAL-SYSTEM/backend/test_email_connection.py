@@ -1,41 +1,42 @@
+
+import os
 import smtplib
-import socket # New import
-import config
-import time
+from dotenv import load_dotenv
 
-# Increase timeout to 30 seconds (default is usually too short for slow networks)
-socket.setdefaulttimeout(30)
+load_dotenv()
 
-print(f"Testing connection to {config.EMAIL_HOST}:{config.EMAIL_PORT}...")
-print(f"User: {config.EMAIL_USER}")
-
-try:
-    # Attempting to connect
-    print(f"⏳ Connecting... (Timeout set to 30s)")
+def test_smtp_login():
+    print("📧 Testing SMTP Connection & Login...")
     
-    if config.EMAIL_PORT == 587:
-        server = smtplib.SMTP(config.EMAIL_HOST, config.EMAIL_PORT)
-        server.set_debuglevel(1) # See exactly where it gets stuck
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-    else:
-        server = smtplib.SMTP_SSL(config.EMAIL_HOST, config.EMAIL_PORT)
+    host = os.getenv("EMAIL_HOST")
+    port = int(os.getenv("EMAIL_PORT", 465))
+    user = os.getenv("EMAIL_USER")
+    password = os.getenv("EMAIL_PASSWORD")
     
-    # Login
-    print("🔑 Logging in...")
-    server.login(config.EMAIL_USER, config.EMAIL_PASSWORD)
-    print("✅ LOGIN SUCCESSFUL! Credentials are valid.")
-    
-    # Send
-    msg = f"Subject: Test Mail\n\nAl-Shifa System Check."
-    server.sendmail(config.EMAIL_USER, config.EMAIL_USER, msg)
-    print("✅ TEST EMAIL SENT!")
-    server.quit()
+    if not user or not password:
+        print("❌ Error: Missing credentials.")
+        return
 
-except socket.timeout:
-    print("❌ ERROR: Connection Timed Out. Your internet is too slow or blocking the port.")
-except smtplib.SMTPConnectError:
-    print("❌ ERROR: Server refused connection. Port is blocked.")
-except Exception as e:
-    print(f"❌ ERROR: {e}")
+    try:
+        if port == 587:
+            print(f"   Connecting to {host}:{port} (STARTTLS)...")
+            server = smtplib.SMTP(host, port)
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+        else:
+            print(f"   Connecting to {host}:{port} (SSL)...")
+            server = smtplib.SMTP_SSL(host, port)
+            
+        print("   Attempting Login...")
+        server.login(user, password)
+        print("✅ Login Successful! Credentials are valid.")
+        server.quit()
+        
+    except smtplib.SMTPAuthenticationError:
+        print("❌ Authentication Failed. Please check your Email or App Password.")
+    except Exception as e:
+        print(f"❌ Connection Failed: {e}")
+
+if __name__ == "__main__":
+    test_smtp_login()

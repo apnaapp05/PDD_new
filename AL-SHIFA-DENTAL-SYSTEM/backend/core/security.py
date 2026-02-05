@@ -38,3 +38,25 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if user is None: raise HTTPException(401, "User not found")
     return user
+
+def validate_password_strength(password: str) -> bool:
+    """
+    Enforce strict password policy:
+    - At least 8 characters
+    - At least 1 Uppercase
+    - At least 1 Lowercase
+    - At least 1 Digit
+    - At least 1 Special Character
+    """
+    import re
+    if len(password) < 8:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Password must be at least 8 characters long")
+    if not re.search(r"[A-Z]", password):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Password must contain at least one uppercase letter")
+    if not re.search(r"[a-z]", password):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Password must contain at least one lowercase letter")
+    if not re.search(r"\d", password):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Password must contain at least one digit")
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Password must contain at least one special character")
+    return True

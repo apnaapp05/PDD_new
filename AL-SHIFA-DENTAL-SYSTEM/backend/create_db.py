@@ -1,13 +1,14 @@
 
+import os
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
-# Params directly from user input
-user = "postgres"
-password = "ADLAB"
-host = "localhost"
-port = "5432"
-db_name = "dental_clinic"
+# Params from env or default
+user = os.getenv("DB_USER", "postgres")
+password = os.getenv("DB_PASSWORD", "ADLAB")
+host = os.getenv("DB_HOST", "localhost")
+port = os.getenv("DB_PORT", "5432")
+db_name = os.getenv("DB_NAME", "dental_clinic")
 
 try:
     # Connect to default 'postgres' db to create the new db

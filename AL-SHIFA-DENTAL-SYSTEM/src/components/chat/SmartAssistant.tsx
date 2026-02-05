@@ -8,6 +8,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Bot, User, Trash2, Loader2, ExternalLink, MessageSquare } from "lucide-react";
 import { AgentAPI } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/github-dark.css';
+import { getChatStorageKey } from '@/lib/chatStorage';
 
 // --- Types ---
 interface BotButton {
@@ -28,6 +33,7 @@ interface Message {
 
 export default function SmartAssistant() {
   const router = useRouter();
+  
 
   // --- State ---
   const [messages, setMessages] = useState<Message[]>([
@@ -43,10 +49,11 @@ export default function SmartAssistant() {
 
   // --- Effects: History & Scroll ---
 
-  // 1. Load History on Mount
+  // 1. Load History on Mount (user-specific)
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("agent_history");
+      const chatKey = getChatStorageKey('agent_history_doctor');
+      const saved = localStorage.getItem(chatKey);
       if (saved) {
         try {
           setMessages(JSON.parse(saved));
@@ -57,11 +64,12 @@ export default function SmartAssistant() {
     }
   }, []);
 
-  // 2. Save History & Scroll on Update
+  // 2. Save History & Scroll on Update (user-specific)
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     if (messages.length > 1) {
-      localStorage.setItem("agent_history", JSON.stringify(messages));
+      const chatKey = getChatStorageKey('agent_history_doctor');
+      localStorage.setItem(chatKey, JSON.stringify(messages));
     }
   }, [messages]);
 
@@ -113,7 +121,8 @@ export default function SmartAssistant() {
       content: { text: "History cleared. Ready for new tasks." }
     };
     setMessages([resetMsg]);
-    localStorage.removeItem("agent_history");
+    const chatKey = getChatStorageKey('agent_history_doctor');
+    localStorage.removeItem(chatKey);
   };
 
   // --- Render Helpers ---
@@ -131,6 +140,23 @@ export default function SmartAssistant() {
       .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
 
     return <div dangerouslySetInnerHTML={{ __html: formatted }} />;
+  };
+
+  // Enhanced markdown rendering with code syntax highlighting
+  const renderMarkdown = (content: string | BotResponse) => {
+    const text = typeof content === "string" ? content : (content?.text || "");
+    if (!text) return null;
+
+    return (
+      <div className="prose prose-sm max-w-none">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeHighlight]}
+        >
+          {text}
+        </ReactMarkdown>
+      </div>
+    );
   };
 
   return (
@@ -179,10 +205,10 @@ export default function SmartAssistant() {
                     {/* Content Bubble */}
                     <div className="flex flex-col gap-2 items-start max-w-full">
                       <div className={`p-3.5 px-5 rounded-2xl text-sm leading-relaxed shadow-sm ${isUser
-                          ? "bg-indigo-600 text-white rounded-tr-none"
-                          : "bg-white border border-gray-200 text-gray-800 rounded-tl-none"
+                        ? "bg-indigo-600 text-white rounded-tr-none"
+                        : "bg-white border border-gray-200 text-gray-800 rounded-tl-none"
                         }`}>
-                        {renderText(msg.content)}
+                        {renderMarkdown(msg.content)}
                       </div>
 
                       {/* Interactive Buttons (Bot Only) */}

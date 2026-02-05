@@ -65,6 +65,7 @@ export const PatientAPI = {
 };
 
 export const AdminAPI = {
+  getStats: () => api.get("/admin/stats"), // ADDED
   getDoctors: () => api.get("/admin/doctors"),
   getOrganizations: () => api.get("/admin/organizations"),
   getPatients: () => api.get("/admin/patients"),
@@ -78,7 +79,7 @@ export const OrganizationAPI = {
   getStats: () => api.get("/organization/stats"),
   getDetails: () => api.get("/organization/details"), // ADDED
   getDoctors: () => api.get("/organization/doctors"),
-  verifyDoctor: (id: number) => api.post(`/organization/doctors/${id}/verify`),
+  // verifyDoctor removed (backend auto-verifies)
   removeDoctor: (id: number) => api.delete(`/organization/doctors/${id}`),
   requestLocationChange: (d: any) => api.post("/organization/location-request", d), // ADDED
 };
@@ -87,4 +88,5 @@ export const AgentAPI = {
   chat: (query: string) => api.post("/doctor/agent/chat", { query }),
   uploadKnowledge: (d: FormData) => api.post("/doctor/agent/upload", d, { headers: { "Content-Type": "multipart/form-data" } }),
   patientChat: (query: string) => api.post("/patient/agent/chat", { query }),
+  getPatientSummary: (id: number) => api.get(`/doctor/agent/summary/${id}`),
 };

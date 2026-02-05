@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar, Clock, Plus, FileText, Sparkles, LogOut, XCircle, User, CalendarDays, MapPin } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { PatientAPI, AuthAPI } from "@/lib/api"; 
+import { PatientAPI, AuthAPI } from "@/lib/api";
 
 export default function PatientDashboard() {
   const router = useRouter();
@@ -31,10 +31,14 @@ export default function PatientDashboard() {
       // Fetch Real Appointments
       const apptRes = await PatientAPI.getMyAppointments();
       if (apptRes.data && apptRes.data.length > 0) {
-        // Find the first non-cancelled, non-completed appointment if possible, else just the latest
-        const latest = apptRes.data[0]; 
+        // Sort by date ASCENDING to get the NEAREST upcoming appointment
+        // (API returns DESC/furthest first)
+        const sorted = apptRes.data.sort((a: any, b: any) =>
+          new Date(a.date + ' ' + a.time).getTime() - new Date(b.date + ' ' + b.time).getTime()
+        );
+        const latest = sorted[0];
         setAppointment(latest);
-        
+
         const apptTime = new Date(`${latest.date} ${latest.time}`).getTime();
         const now = new Date().getTime();
         const diff = apptTime - now;
@@ -64,7 +68,7 @@ export default function PatientDashboard() {
   // --- DIRECT CANCELLATION ---
   const handleCancel = async () => {
     if (!appointment) return;
-    
+
     if (!confirm("Are you sure you want to CANCEL this appointment? This action cannot be undone.")) {
       return;
     }
@@ -83,7 +87,7 @@ export default function PatientDashboard() {
 
   const handleNavigate = () => {
     if (!appointment) return;
-    
+
     if (!appointment.hospital_lat || !appointment.hospital_lng) {
       if (appointment.hospital_name) {
         const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.hospital_name + " " + appointment.hospital_address)}`;
@@ -100,8 +104,8 @@ export default function PatientDashboard() {
         const url = `https://www.google.com/maps/dir/?api=1&origin=${latitude},${longitude}&destination=${appointment.hospital_lat},${appointment.hospital_lng}`;
         window.open(url, '_blank');
       }, (error) => {
-         const url = `https://www.google.com/maps/search/?api=1&query=${appointment.hospital_lat},${appointment.hospital_lng}`;
-         window.open(url, '_blank');
+        const url = `https://www.google.com/maps/search/?api=1&query=${appointment.hospital_lat},${appointment.hospital_lng}`;
+        window.open(url, '_blank');
       });
     } else {
       alert("Geolocation is not supported by this browser.");
@@ -110,114 +114,111 @@ export default function PatientDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20 font-sans">
-      
+
       {/* --- HEADER --- */}
       <header className="relative overflow-hidden bg-gradient-to-br from-blue-900 to-blue-600 pb-24 pt-8 px-6 shadow-2xl rounded-b-[40px]">
         <div className="absolute -top-20 -right-20 h-64 w-64 rounded-full bg-white/10 blur-3xl"></div>
         <div className="absolute top-10 -left-10 h-32 w-32 rounded-full bg-white/10 blur-2xl"></div>
-        
+
         <div className="relative z-10 flex justify-between items-center">
           <div>
             <p className="text-blue-100 text-xs font-bold uppercase tracking-widest opacity-80">Welcome Back</p>
             <h1 className="text-3xl font-extrabold text-white mt-1 capitalize">{userName}</h1>
             <p className="text-xs text-white/60">{userEmail}</p>
           </div>
-          
+
           <div className="flex items-center gap-3">
-             <button onClick={handleLogout} className="h-10 w-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all text-white border border-white/20 shadow-lg">
-               <LogOut className="h-5 w-5" />
-             </button>
-             <Link href="/patient/profile">
-               <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md border-2 border-white/40 cursor-pointer hover:bg-white/30 transition-all shadow-xl">
-                  <User className="h-6 w-6 text-white" />
-               </div>
-             </Link>
+            <button onClick={handleLogout} className="h-10 w-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all text-white border border-white/20 shadow-lg">
+              <LogOut className="h-5 w-5" />
+            </button>
+            <Link href="/patient/profile">
+              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-md border-2 border-white/40 cursor-pointer hover:bg-white/30 transition-all shadow-xl">
+                <User className="h-6 w-6 text-white" />
+              </div>
+            </Link>
           </div>
         </div>
       </header>
 
       <div className="px-6 -mt-16 relative z-20 space-y-8">
-        
+
         {/* --- HERO CARD --- */}
         <div className="rounded-3xl bg-white p-1 shadow-[0_20px_50px_rgba(0,0,0,0.1)]">
           <div className="rounded-[20px] border border-slate-100 bg-white overflow-hidden">
             {loading ? (
-                <div className="p-10 text-center text-slate-400">Loading your schedule...</div>
+              <div className="p-10 text-center text-slate-400">Loading your schedule...</div>
             ) : appointment ? (
               <div className="p-0">
-                 <div className={`px-6 py-4 flex justify-between items-center ${
-                    appointment.status === 'cancelled' ? 'bg-red-900' : 'bg-slate-900'
-                 }`}>
-                   <div className="flex items-center gap-2 text-white">
-                     <span className="relative flex h-3 w-3">
-                       <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                          appointment.status === 'cancelled' ? 'bg-red-400' : 'bg-green-400'
-                       }`}></span>
-                       <span className={`relative inline-flex rounded-full h-3 w-3 ${
-                          appointment.status === 'cancelled' ? 'bg-red-500' : 'bg-green-500'
-                       }`}></span>
-                     </span>
-                     <span className="text-sm font-bold tracking-wide uppercase">{appointment.status}</span>
-                   </div>
-                   <div className="text-white/60 text-xs font-mono">ID: #{appointment.id}</div>
-                 </div>
+                <div className={`px-6 py-4 flex justify-between items-center ${appointment.status === 'cancelled' ? 'bg-red-900' : 'bg-slate-900'
+                  }`}>
+                  <div className="flex items-center gap-2 text-white">
+                    <span className="relative flex h-3 w-3">
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${appointment.status === 'cancelled' ? 'bg-red-400' : 'bg-green-400'
+                        }`}></span>
+                      <span className={`relative inline-flex rounded-full h-3 w-3 ${appointment.status === 'cancelled' ? 'bg-red-500' : 'bg-green-500'
+                        }`}></span>
+                    </span>
+                    <span className="text-sm font-bold tracking-wide uppercase">{appointment.status}</span>
+                  </div>
+                  <div className="text-white/60 text-xs font-mono">ID: #{appointment.id}</div>
+                </div>
 
-                 <div className="p-6">
-                   <div className="flex flex-col md:flex-row gap-6 items-center">
-                     <div className="flex-1 space-y-2">
-                       <h2 className="text-2xl font-bold text-slate-900">{appointment.treatment}</h2>
-                       <p className="text-slate-500 font-medium flex items-center gap-2">
-                         <User className="h-4 w-4 text-blue-500" /> Dr. {appointment.doctor}
-                       </p>
-                       <p className="text-slate-400 text-sm flex items-center gap-2">
-                          <MapPin className="h-3 w-3" /> {appointment.hospital_name}
-                       </p>
-                       <div className="flex flex-wrap gap-2 mt-3">
-                         <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-2">
-                           <Calendar className="h-3 w-3" /> {appointment.date}
-                         </span>
-                         <span className="bg-orange-50 text-orange-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-2">
-                           <Clock className="h-3 w-3" /> {appointment.time}
-                         </span>
-                       </div>
-                     </div>
+                <div className="p-6">
+                  <div className="flex flex-col md:flex-row gap-6 items-center">
+                    <div className="flex-1 space-y-2">
+                      <h2 className="text-2xl font-bold text-slate-900">{appointment.treatment}</h2>
+                      <p className="text-slate-500 font-medium flex items-center gap-2">
+                        <User className="h-4 w-4 text-blue-500" /> Dr. {appointment.doctor}
+                      </p>
+                      <p className="text-slate-400 text-sm flex items-center gap-2">
+                        <MapPin className="h-3 w-3" /> {appointment.hospital_name}
+                      </p>
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-2">
+                          <Calendar className="h-3 w-3" /> {appointment.date}
+                        </span>
+                        <span className="bg-orange-50 text-orange-700 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-2">
+                          <Clock className="h-3 w-3" /> {appointment.time}
+                        </span>
+                      </div>
+                    </div>
 
-                     <div className="flex flex-col gap-2 w-full md:w-auto">
-                       {appointment.status !== 'cancelled' && (
-                         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 min-w-[180px] text-center">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Starts In</p>
-                            <div className="flex justify-center gap-2 text-2xl font-mono font-bold text-slate-800">
-                              <span>{countdown.h}<span className="text-[10px] text-slate-400 align-top ml-0.5">H</span></span>:
-                              <span>{countdown.m}<span className="text-[10px] text-slate-400 align-top ml-0.5">M</span></span>
-                            </div>
-                         </div>
-                       )}
-                       
-                       <Button onClick={handleNavigate} className="w-full bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold rounded-xl flex items-center justify-center gap-2">
-                          <MapPin className="h-4 w-4" /> Get Directions
-                       </Button>
-                     </div>
-                   </div>
-
-                   <div className="flex gap-3 mt-6 pt-6 border-t border-slate-100">
-                      {appointment.status !== 'cancelled' && appointment.status !== 'completed' ? (
-                        <>
-                          <Link href="/patient/appointments/new" className="flex-1">
-                             <Button variant="outline" className="w-full h-12 rounded-xl border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-600 hover:bg-blue-50 font-bold transition-all">
-                                <CalendarDays className="mr-2 h-4 w-4"/> Reschedule
-                             </Button>
-                          </Link>
-                          <Button onClick={handleCancel} variant="ghost" className="h-12 rounded-xl text-red-500 hover:bg-red-50 hover:text-red-600 font-bold transition-all px-6">
-                             <XCircle className="mr-2 h-4 w-4"/> Cancel
-                          </Button>
-                        </>
-                      ) : (
-                        <div className="w-full text-center text-slate-400 text-sm italic">
-                          This appointment is {appointment.status}. <Link href="/patient/appointments/new" className="text-blue-600 underline">Book a new one?</Link>
+                    <div className="flex flex-col gap-2 w-full md:w-auto">
+                      {appointment.status !== 'cancelled' && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 min-w-[180px] text-center">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Starts In</p>
+                          <div className="flex justify-center gap-2 text-2xl font-mono font-bold text-slate-800">
+                            <span>{countdown.h}<span className="text-[10px] text-slate-400 align-top ml-0.5">H</span></span>:
+                            <span>{countdown.m}<span className="text-[10px] text-slate-400 align-top ml-0.5">M</span></span>
+                          </div>
                         </div>
                       )}
-                   </div>
-                 </div>
+
+                      <Button onClick={handleNavigate} className="w-full bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold rounded-xl flex items-center justify-center gap-2">
+                        <MapPin className="h-4 w-4" /> Get Directions
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 mt-6 pt-6 border-t border-slate-100">
+                    {appointment.status !== 'cancelled' && appointment.status !== 'completed' ? (
+                      <>
+                        <Link href="/patient/appointments/new" className="flex-1">
+                          <Button variant="outline" className="w-full h-12 rounded-xl border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-600 hover:bg-blue-50 font-bold transition-all">
+                            <CalendarDays className="mr-2 h-4 w-4" /> Reschedule
+                          </Button>
+                        </Link>
+                        <Button onClick={handleCancel} variant="ghost" className="h-12 rounded-xl text-red-500 hover:bg-red-50 hover:text-red-600 font-bold transition-all px-6">
+                          <XCircle className="mr-2 h-4 w-4" /> Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="w-full text-center text-slate-400 text-sm italic">
+                        This appointment is {appointment.status}. <Link href="/patient/appointments/new" className="text-blue-600 underline">Book a new one?</Link>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="text-center py-10 px-6">
@@ -241,17 +242,17 @@ export default function PatientDashboard() {
           <h2 className="text-lg font-bold text-slate-900 mb-5 flex items-center gap-2 px-1">
             <Sparkles className="h-5 w-5 text-yellow-500" /> Quick Actions
           </h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-             
-             {/* 1. NEW BOOKING */}
+
+            {/* 1. NEW BOOKING */}
             <Link href="/patient/appointments/new">
               <div className="group relative h-40 overflow-hidden rounded-[24px] bg-gradient-to-br from-blue-600 to-blue-700 p-6 text-white shadow-xl shadow-blue-500/20 transition-all hover:shadow-blue-500/40 hover:-translate-y-1 cursor-pointer">
                 <div className="absolute right-0 top-0 h-full w-full opacity-10">
-                   <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-                      <path d="M0 100 C 20 0 50 0 100 100 Z" fill="none" stroke="white" strokeWidth="2" />
-                      <path d="M0 80 C 40 10 70 10 100 80 Z" fill="none" stroke="white" strokeWidth="2" />
-                   </svg>
+                  <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <path d="M0 100 C 20 0 50 0 100 100 Z" fill="none" stroke="white" strokeWidth="2" />
+                    <path d="M0 80 C 40 10 70 10 100 80 Z" fill="none" stroke="white" strokeWidth="2" />
+                  </svg>
                 </div>
                 <div className="relative z-10 flex h-full flex-col justify-between">
                   <div className="h-12 w-12 rounded-2xl bg-white/20 flex items-center justify-center backdrop-blur-md border border-white/20">

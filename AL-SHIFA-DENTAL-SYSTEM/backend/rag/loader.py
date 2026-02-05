@@ -18,72 +18,97 @@ class DocumentLoader:
         
         # Load Text Files
         for file_path in glob.glob(os.path.join(directory_path, "*.txt")):
-            with open(file_path, "r", encoding="utf-8") as f:
-                content = f.read()
-                # Split content by paragraphs or headings generally helps
-                # For simplicity, we split by double newlines to get chunks
-                chunks = content.split("\n\n")
-                for chunk in chunks:
-                    if len(chunk.strip()) > 20: # Ignore empty/tiny chunks
-                        self.store.add_document(chunk.strip(), os.path.basename(file_path))
-                        count += 1
+            success, msg = self.process_file(file_path)
+            if success:
+                # Extract count from message "Successfully indexed X chunks..."
+                try:
+                    count += int(msg.split(" ")[2])
+                except:
+                    pass
 
         # Load PDF Files
         try:
             import pypdf
             for file_path in glob.glob(os.path.join(directory_path, "*.pdf")):
-                reader = pypdf.PdfReader(file_path)
-                full_text = ""
-                for page in reader.pages:
-                    full_text += page.extract_text() + "\n\n"
-                
-                chunks = full_text.split("\n\n")
-                for chunk in chunks:
-                    if len(chunk.strip()) > 20:
-                         self.store.add_document(chunk.strip(), os.path.basename(file_path))
-                         count += 1
+                success, msg = self.process_file(file_path)
+                if success:
+                    try:
+                        count += int(msg.split(" ")[2])
+                    except:
+                        pass
         except ImportError:
             print("pypdf not installed, skipping PDFs")
             
-        return f"Loaded {count} chunks from {directory_path}."
+        return f"Loaded {count} chunks total from {directory_path}."
 
     def process_file(self, file_path: str):
         """
-        Process a single file and add to RAG store.
+        Process a single file and add to RAG store using header-aware chunking.
         """
         if not os.path.exists(file_path):
              return False, "File not found"
              
         filename = os.path.basename(file_path)
-        count = 0
         
         try:
+            content = ""
             if filename.endswith(".txt"):
                 with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
-                    chunks = content.split("\n\n")
-                    for chunk in chunks:
-                        if len(chunk.strip()) > 20: 
-                            self.store.add_document(chunk.strip(), filename)
-                            count += 1
-                            
             elif filename.endswith(".pdf"):
-                try:
-                    import pypdf
-                    reader = pypdf.PdfReader(file_path)
-                    full_text = ""
-                    for page in reader.pages:
-                        full_text += page.extract_text() + "\n\n"
-                    
-                    chunks = full_text.split("\n\n")
-                    for chunk in chunks:
-                        if len(chunk.strip()) > 20:
-                             self.store.add_document(chunk.strip(), filename)
-                             count += 1
-                except ImportError:
-                    return False, "pypdf not installed"
+                import pypdf
+                reader = pypdf.PdfReader(file_path)
+                for page in reader.pages:
+                    content += page.extract_text() + "\n\n"
+            else:
+                return False, "Unsupported file format"
+
+            chunks = self._chunk_by_headers(content)
+            count = 0
+            for chunk in chunks:
+                if len(chunk.strip()) > 20: 
+                    self.store.add_document(chunk.strip(), filename)
+                    count += 1
             
             return True, f"Successfully indexed {count} chunks from {filename}."
             
         except Exception as e:
             return False, str(e)
+
+    def _chunk_by_headers(self, text: str):
+        """
+        Splits text into chunks based on Markdown headers (# or ##).
+        Each chunk includes its header.
+        """
+        lines = text.split("\n")
+        chunks = []
+        current_chunk = []
+        
+        main_header = ""
+        sub_header = ""
+        
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("# "):
+                # If we have a previous chunk, save it
+                if current_chunk:
+                    chunks.append("\n".join(current_chunk))
+                main_header = stripped
+                sub_header = ""
+                current_chunk = [line]
+            elif stripped.startswith("## "):
+                if current_chunk:
+                    chunks.append("\n".join(current_chunk))
+                sub_header = stripped
+                # New chunk starts with main header (if any) and then sub-header
+                current_chunk = []
+                if main_header:
+                    current_chunk.append(main_header)
+                current_chunk.append(line)
+            else:
+                current_chunk.append(line)
+                
+        if current_chunk:
+            chunks.append("\n".join(current_chunk))
+            
+        return chunks

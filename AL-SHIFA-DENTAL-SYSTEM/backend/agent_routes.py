@@ -21,17 +21,26 @@ def chat_with_agent(query: str = Body(..., embed=True), user: models.User = Depe
     if not doctor:
         return {"response": "Doctor profile not found."}
 
-    # 2. Retrieve History
+    # 2. Check Cache First
+    from cache import response_cache
+    cached = response_cache.get(query, user.id)
+    if cached:
+        return {"response": cached}
+
+    # 3. Retrieve History
     history = OBJECT_MEMORY.get(user.id, None)
 
-    # 3. Instantiate the Agent with History
+    # 4. Instantiate the Agent with History
     agent = ClinicAgent(doctor.id, history=history)
     
-    # 4. Process with fresh DB
+    # 5. Process with fresh DB
     try:
         response_text = agent.process(query, db)
         
-        # 5. Save History
+        # 6. Cache successful response
+        response_cache.set(query, user.id, response_text)
+        
+        # 7. Save History
         OBJECT_MEMORY[user.id] = agent.messages
         
         return {"response": response_text}
@@ -73,3 +82,20 @@ def upload_knowledge(file: UploadFile = File(...), user: models.User = Depends(g
             
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@router.get("/summary/{patient_id}")
+def get_patient_summary(patient_id: int, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if user.role != "doctor":
+        return {"response": "Access Denied"}
+    
+    doctor = db.query(Doctor).filter(Doctor.user_id == user.id).first()
+    if not doctor:
+        return {"response": "Doctor profile not found."}
+        
+    try:
+        from services.clinical_service import ClinicalService
+        service = ClinicalService(db, doctor.id)
+        summary = service.generate_patient_summary(patient_id)
+        return {"summary": summary}
+    except Exception as e:
+        return {"summary": f"Error generating summary: {str(e)}"}

@@ -36,10 +36,16 @@ def create_default_admin(db: Session):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Initialize database
     init_db()
     db = database.SessionLocal()
     try:
         create_default_admin(db)
     finally:
         db.close()
+    
+    # Start background scheduler
+    from agent.scheduler import proactive_system
+    proactive_system.start()
+    
     yield

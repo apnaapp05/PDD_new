@@ -7,7 +7,7 @@ import logging
 
 import models, schemas
 from database import get_db
-from core.security import verify_password, create_access_token, get_current_user, get_password_hash
+from core.security import verify_password, create_access_token, get_current_user, get_password_hash, validate_password_strength
 from core.utils import generate_otp, get_otp_email_template
 from core.email import email_service
 
@@ -20,17 +20,17 @@ def login(f: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db
     if not u or not verify_password(f.password, u.password_hash): raise HTTPException(403, "Invalid Credentials")
     if not u.is_email_verified: raise HTTPException(403, "Email not verified")
     
-    if u.role == "doctor":
-        d = db.query(models.Doctor).filter(models.Doctor.user_id == u.id).first()
-        if d and not d.is_verified: raise HTTPException(403, "Account pending Admin approval")
-    elif u.role == "organization":
-        h = db.query(models.Hospital).filter(models.Hospital.owner_id == u.id).first()
-        if h and not h.is_verified: raise HTTPException(403, "Account pending Admin approval")
+    # Removed Admin Approval checks
+    # if u.role == "doctor": ...
+    # elif u.role == "organization": ...
 
     return {"access_token": create_access_token({"sub": str(u.id), "role": u.role}), "token_type": "bearer", "role": u.role}
 
 @router.post("/register")
 def register(user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    # Validate Password Strength
+    validate_password_strength(user.password)
+    
     email_clean = user.email.lower().strip()
     if db.query(models.User).filter(models.User.email == email_clean, models.User.is_email_verified == True).first(): 
         raise HTTPException(400, "Email already registered")
@@ -58,13 +58,13 @@ def register(user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Se
             hashed_pw = get_password_hash(user.password)
             new_user = models.User(email=email_clean, password_hash=hashed_pw, full_name=user.full_name, role=user.role, is_email_verified=False, otp_code=otp, otp_expires_at=expires_at, address=user.address)
             db.add(new_user); db.flush() 
-            if user.role == "organization": db.add(models.Hospital(owner_id=new_user.id, name=user.full_name, address=user.address or "Pending", is_verified=False))
+            if user.role == "organization": db.add(models.Hospital(owner_id=new_user.id, name=user.full_name, address=user.address or "Pending", is_verified=True))
             elif user.role == "patient": db.add(models.Patient(user_id=new_user.id, age=user.age or 0, gender=user.gender))
             elif user.role == "doctor":
                 if not user.hospital_name: db.rollback(); raise HTTPException(400, "Hospital name required")
                 hospital = db.query(models.Hospital).filter(models.Hospital.name == user.hospital_name).first()
                 if not hospital: db.rollback(); raise HTTPException(400, "Hospital not found")
-                db.add(models.Doctor(user_id=new_user.id, hospital_id=hospital.id, specialization=user.specialization, license_number=user.license_number, is_verified=False))
+                db.add(models.Doctor(user_id=new_user.id, hospital_id=hospital.id, specialization=user.specialization, license_number=user.license_number, is_verified=True))
             db.commit()
         
         background_tasks.add_task(send_email_safe, email_clean, user.full_name, otp)

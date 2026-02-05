@@ -38,8 +38,25 @@ def patient_chat(request: ChatRequest, db: Session = Depends(get_db), current_us
     try:
         print(f"DEBUG: Processing query: {request.query}")
         response_text = brain.process(request.query)
+        
+        # CRITICAL: Commit any database changes made by tools
+        try:
+            db.commit()
+            print("DEBUG: Database changes committed successfully")
+        except Exception as commit_err:
+            print(f"DEBUG: Commit failed: {commit_err}")
+            db.rollback()
+        
         print(f"DEBUG: Brain returned: {response_text!r}")
-        return response_text
+        
+        # Return consistent format
+        if isinstance(response_text, dict):
+            return response_text
+        else:
+            return {"response": response_text, "text": response_text}
+            
     except Exception as e:
         print(f"DEBUG: Error in route: {e}")
-        return {"response": f"❌ Error: {str(e)}"}
+        db.rollback()
+        return {"response": f"❌ Error: {str(e)}", "text": f"❌ Error: {str(e)}"}
+

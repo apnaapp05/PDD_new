@@ -1,0 +1,21 @@
+name,cost,price,duration
+Dental Cleaning,200.0,500.0,30
+Teeth Whitening,500.0,1500.0,60
+Composite Filling,300.0,800.0,45
+Amalgam Filling,250.0,600.0,40
+Root Canal Treatment,1000.0,3000.0,90
+Tooth Extraction (Simple),400.0,1000.0,30
+Tooth Extraction (Surgical),800.0,2000.0,60
+Crown Placement (Ceramic),1500.0,5000.0,60
+Crown Placement (Metal),1000.0,3500.0,60
+Dental Bridge,2500.0,8000.0,90
+Dental Implant,5000.0,15000.0,120
+Dentures (Full Set),3000.0,10000.0,90
+Dentures (Partial),1500.0,5000.0,60
+Scaling & Root Planing,500.0,1500.0,60
+Fluoride Treatment,100.0,300.0,15
+Dental X-Ray (Single),150.0,400.0,10
+Dental X-Ray (Full Mouth),500.0,1200.0,20
+Emergency Consultation,100.0,500.0,20
+Orthodontic Consultation,200.0,1000.0,45
+Braces Installation,8000.0,25000.0,120

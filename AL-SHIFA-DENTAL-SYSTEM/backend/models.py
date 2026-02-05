@@ -33,7 +33,7 @@ class Hospital(Base): # Alias for Organization to match main.py logic
     owner_id = Column(Integer, ForeignKey("users.id"))
     name = Column(String)
     address = Column(String)
-    is_verified = Column(Boolean, default=False)
+    is_verified = Column(Boolean, default=True)
     # Pending location changes
     pending_address = Column(String, nullable=True)
     pending_pincode = Column(String, nullable=True)
@@ -51,7 +51,7 @@ class Doctor(Base):
     specialization = Column(String)
     experience = Column(Integer)
     license_number = Column(String) # ✅ Added License Number
-    is_verified = Column(Boolean, default=False)
+    is_verified = Column(Boolean, default=True)
     scheduling_config = Column(Text, nullable=True) # JSON string
     
     user = relationship("User")
