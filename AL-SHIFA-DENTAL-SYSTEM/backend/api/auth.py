@@ -37,6 +37,7 @@ def register(user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Se
     
     existing_unverified = db.query(models.User).filter(models.User.email == email_clean, models.User.is_email_verified == False).first()
     otp = generate_otp()
+    print(f"\n\n[DEBUG] GENERATED OTP for {email_clean}: {otp}\n\n")
     expires_at = datetime.utcnow() + timedelta(minutes=10)
 
     def send_email_safe(email, name, otp_code):
@@ -46,6 +47,13 @@ def register(user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Se
                 email_service.send(to_email=email, subject="Verify your Account - Al-Shifa Dental", body=txt_msg, html_body=html_msg)
             except Exception as e: logger.error(f"Failed to send email to {email}: {e}")
         else: logger.info(f"EMAIL SERVICE NOT CONFIGURED. OTP for {email}: {otp_code}")
+
+    if user.role == "doctor":
+        if user.dob:
+            dob_date = datetime.strptime(user.dob, "%Y-%m-%d")
+            age = (datetime.utcnow() - dob_date).days // 365
+            if age < 30:
+                raise HTTPException(400, "Doctors must be at least 30 years old.")
 
     try:
         if existing_unverified:

@@ -4,13 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Smile, Loader2, AlertCircle } from "lucide-react";
+import { Smile, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { AuthAPI } from "@/lib/api";
 
 export default function PatientLogin() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -22,7 +23,7 @@ export default function PatientLogin() {
       const res = await AuthAPI.login(form.email, form.password);
       localStorage.setItem("token", res.data.access_token);
       localStorage.setItem("role", "patient");
-      
+
       window.location.href = "/patient/dashboard";
     } catch (err: any) {
       const detail = err.response?.data?.detail;
@@ -54,15 +55,26 @@ export default function PatientLogin() {
             <AlertCircle className="h-4 w-4" /> {error}
           </div>
         )}
-        
+
         <div className="space-y-1">
           <label className="text-xs font-bold uppercase text-slate-500">Email</label>
-          <Input type="email" placeholder="you@example.com" value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} required />
+          <Input type="email" placeholder="you@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
         </div>
-        
+
         <div className="space-y-1">
           <label className="text-xs font-bold uppercase text-slate-500">Password</label>
-          <Input type="password" placeholder="••••••••" value={form.password} onChange={(e) => setForm({...form, password: e.target.value})} required />
+          <Input
+            type={showPassword ? "text" : "password"}
+            placeholder="••••••••"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            required
+            suffix={
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="focus:outline-none hover:text-slate-700">
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            }
+          />
         </div>
 
         <Button className="w-full bg-emerald-600 hover:bg-emerald-700 font-bold" disabled={loading}>

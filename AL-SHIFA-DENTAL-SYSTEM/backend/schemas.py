@@ -18,14 +18,27 @@ class UserCreate(BaseModel):
     
     @validator("phone_number")
     def validate_phone(cls, v):
-        if v and not re.match(r"^\d{10}$", v):
-            raise ValueError("Phone number must be exactly 10 digits")
+        if v:
+            if not re.match(r"^[6-9]\d{9}$", v):
+                raise ValueError("Phone number must be a valid Indian number (10 digits, starting with 6-9)")
         return v
 
     @validator("full_name")
     def validate_name(cls, v):
         if v and not re.match(r"^[a-zA-Z\s]+$", v):
             raise ValueError("Name must contain alphabets only")
+        return v
+
+    @validator("dob")
+    def validate_dob(cls, v):
+        if v:
+            try:
+                dob_date = datetime.strptime(v, "%Y-%m-%d")
+                if dob_date > datetime.now():
+                    raise ValueError("Date of Birth cannot be in the future")
+            except ValueError as e:
+                if "future" in str(e): raise e
+                raise ValueError("Invalid Date format, expected YYYY-MM-DD")
         return v
 
 class UserOut(BaseModel):

@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Building2, MapPin } from "lucide-react";
+import { Loader2, Building2, MapPin, Eye, EyeOff } from "lucide-react";
 import { AuthAPI } from "@/lib/api";
 
 // Use dynamic import to fix SSR issues with the map
-const LocationPicker = dynamic(() => import("@/components/location/LocationPicker"), { 
-  ssr: false, 
-  loading: () => <div className="h-[300px] w-full bg-slate-100 animate-pulse rounded-lg flex items-center justify-center text-slate-400">Loading Map...</div> 
+const LocationPicker = dynamic(() => import("@/components/location/LocationPicker"), {
+  ssr: false,
+  loading: () => <div className="h-[300px] w-full bg-slate-100 animate-pulse rounded-lg flex items-center justify-center text-slate-400">Loading Map...</div>
 });
 
 export default function OrgSignup() {
@@ -22,6 +22,8 @@ export default function OrgSignup() {
   const [formData, setFormData] = useState({
     name: "", email: "", password: "", confirmPassword: "", address: "", pincode: "", lat: 17.3850, lng: 78.4867
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,12 +51,32 @@ export default function OrgSignup() {
         <CardContent>
           <form onSubmit={handleSignup} className="space-y-6">
             <div className="grid md:grid-cols-2 gap-4">
-              <Input placeholder="Hospital Name" required onChange={(e) => setFormData({...formData, name: e.target.value})} />
-              <Input placeholder="Official Email" type="email" required onChange={(e) => setFormData({...formData, email: e.target.value})} />
+              <Input placeholder="Hospital Name" required onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+              <Input placeholder="Official Email" type="email" required onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
             </div>
             <div className="grid md:grid-cols-2 gap-4">
-              <Input placeholder="Password" type="password" required onChange={(e) => setFormData({...formData, password: e.target.value})} />
-              <Input placeholder="Confirm Password" type="password" required onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})} />
+              <Input
+                placeholder="Password"
+                type={showPassword ? "text" : "password"}
+                required
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                suffix={
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="focus:outline-none hover:text-slate-700">
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                }
+              />
+              <Input
+                placeholder="Confirm Password"
+                type={showConfirmPassword ? "text" : "password"}
+                required
+                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                suffix={
+                  <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="focus:outline-none hover:text-slate-700">
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                }
+              />
             </div>
             <div className="space-y-4">
               <Label className="flex items-center gap-2"><MapPin className="h-4 w-4" /> Clinic Location</Label>

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, User, AlertCircle } from "lucide-react";
+import { Loader2, User, AlertCircle, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { AuthAPI } from "@/lib/api";
 
@@ -30,6 +30,8 @@ export default function PatientSignup() {
 
   const [privacyChecked, setPrivacyChecked] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,15 +44,21 @@ export default function PatientSignup() {
     if (!formData.dob || !formData.gender) {
       setError("Please fill all required fields"); return;
     }
-    if (formData.phone.length !== 10) {
-      setError("Mobile number must be exactly 10 digits"); return;
+    if (!/^[6-9]\d{9}$/.test(formData.phone)) {
+      setError("Please enter a valid Indian mobile number (starts with 6-9)"); return;
     }
     if (!privacyChecked) {
       setError("You must agree to the Privacy Policy"); return;
     }
 
-    // Calculate Age from DOB
+    // Date Validation
     const birthDate = new Date(formData.dob);
+    if (birthDate > new Date()) {
+      setError("Date of Birth cannot be in the future"); return;
+    }
+
+    // Calculate Age from DOB
+    // birthDate is already defined above
     const age = new Date().getFullYear() - birthDate.getFullYear();
 
     setLoading(true);
@@ -201,20 +209,30 @@ export default function PatientSignup() {
                 <Label htmlFor="password">Password</Label>
                 <Input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  suffix={
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="focus:outline-none hover:text-slate-700">
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  }
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirm">Confirm Password</Label>
                 <Input
                   id="confirm"
-                  type="password"
+                  type={showConfirmPassword ? "text" : "password"}
                   required
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  suffix={
+                    <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="focus:outline-none hover:text-slate-700">
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  }
                 />
               </div>
             </div>

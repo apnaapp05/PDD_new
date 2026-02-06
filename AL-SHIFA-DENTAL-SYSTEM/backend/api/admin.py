@@ -90,9 +90,25 @@ def delete_entity(type: str, id: int, db: Session = Depends(get_db)):
     try:
         if type == "doctor":
             r = db.query(models.Doctor).filter(models.Doctor.id == id).first()
-            if r: db.delete(r.user); db.delete(r)
+            if r: 
+                user = r.user
+                db.delete(r)
+                if user: db.delete(user)
         elif type == "organization":
             r = db.query(models.Hospital).filter(models.Hospital.id == id).first()
-            if r: db.delete(r.owner); db.delete(r)
-        db.commit(); return {"message": "Deleted"}
-    except: db.rollback(); raise HTTPException(500, "Delete failed")
+            if r: 
+                user = r.owner
+                db.delete(r)
+                if user: db.delete(user)
+        elif type == "patient":
+            r = db.query(models.Patient).filter(models.Patient.id == id).first()
+            if r:
+                user = r.user
+                db.delete(r)
+                if user: db.delete(user)
+        
+        db.commit()
+        return {"message": "Deleted"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Delete failed: {str(e)}")

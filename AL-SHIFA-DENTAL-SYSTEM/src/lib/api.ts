@@ -1,7 +1,7 @@
 // src/lib/api.ts
 import axios from "axios";
 
-const API_URL = "http://localhost:8000";
+const API_URL = "http://10.108.86.95:8000";
 
 export const api = axios.create({ baseURL: API_URL, headers: { "Content-Type": "application/json" } });
 

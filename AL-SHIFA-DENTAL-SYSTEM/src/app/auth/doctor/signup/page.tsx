@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   ShieldCheck, Loader2, AlertCircle,
-  Building2, ChevronDown
+  Building2, ChevronDown, Eye, EyeOff
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -40,6 +40,8 @@ export default function DoctorSignup() {
 
   const [privacyChecked, setPrivacyChecked] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // FETCH HOSPITALS ON MOUNT
   useEffect(() => {
@@ -79,12 +81,31 @@ export default function DoctorSignup() {
       setError("Passwords do not match.");
       setLoading(false); return;
     }
-    if (formData.phone.length !== 10) {
-      setError("Mobile number must be exactly 10 digits.");
+    if (!/^[6-9]\d{9}$/.test(formData.phone)) {
+      setError("Please enter a valid Indian mobile number (starts with 6-9).");
       setLoading(false); return;
     }
     if (!privacyChecked) {
       setError("You must agree to the Privacy Policy.");
+      setLoading(false); return;
+    }
+
+    // Date Validation
+    const birthDate = new Date(formData.dob);
+    if (birthDate > new Date()) {
+      setError("Date of Birth cannot be in the future.");
+      setLoading(false); return;
+    }
+
+    // Minimum Age Validation (30 years)
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    if (age < 30) {
+      setError("Doctors must be at least 30 years old.");
       setLoading(false); return;
     }
 
@@ -188,11 +209,33 @@ export default function DoctorSignup() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-slate-700">Password</label>
-                  <Input type="password" name="password" value={formData.password} onChange={handleChange} required />
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    required
+                    suffix={
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="focus:outline-none hover:text-slate-700">
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    }
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-slate-700">Confirm Password</label>
-                  <Input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required />
+                  <Input
+                    type={showConfirmPassword ? "text" : "password"}
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    required
+                    suffix={
+                      <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="focus:outline-none hover:text-slate-700">
+                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    }
+                  />
                 </div>
               </div>
             </div>
