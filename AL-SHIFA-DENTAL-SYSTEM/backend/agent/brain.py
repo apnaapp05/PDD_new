@@ -387,8 +387,24 @@ class ClinicAgent:
             
         except Exception as e:
             print(f"DEBUG: Groq Error Details: {type(e).__name__}: {e}")
-            # More helpful error message
             error_str = str(e)
+            
+            # FALLBACK: If tool use failed (API Exception), retry without tools
             if "tool_use_failed" in error_str:
-                return "⚠️ The AI encountered an issue with function calling. Please try rephrasing your question or ask something simpler."
+                print("DEBUG: Catching tool_use_failed exception. Retrying without tools...")
+                try:
+                    # Remove the last user message to avoid duplication if we were to re-append, 
+                    # but here we just re-send the same history.
+                    fallback_response = client.chat.completions.create(
+                        model="llama-3.1-8b-instant",
+                        messages=self.messages
+                        # Intentionally omitting tools to force text response
+                    )
+                    fallback_text = fallback_response.choices[0].message.content
+                    self.messages.append({"role": "assistant", "content": fallback_text})
+                    return fallback_text
+                except Exception as fallback_error:
+                    print(f"DEBUG: Fallback failed too: {fallback_error}")
+                    return "⚠️ I encountered an issue processing that with my tools. Please try again or ask a simpler question."
+
             return f"❌ AI Error: {str(e)}"

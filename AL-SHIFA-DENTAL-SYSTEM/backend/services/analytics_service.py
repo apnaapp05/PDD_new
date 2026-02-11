@@ -32,10 +32,32 @@ class AnalyticsService:
         # 1. Calculate Stats
         total_revenue = 0
         pending = 0
+        
+        # A. Existing Invoices
         if invoices:
             df = pd.DataFrame([{"amount": i.amount, "status": i.status} for i in invoices])
             total_revenue = df[df["status"] == "paid"]["amount"].sum()
             pending = df[df["status"] == "pending"]["amount"].sum()
+
+        # B. Confirmed Appointments (Unbilled Revenue)
+        # Fetch confirmed appointments that define "Pending Work"
+        from models import Treatment
+        unbilled_appts = self.db.query(Appointment).filter(
+            Appointment.doctor_id == self.doc_id,
+            Appointment.status == "confirmed"
+        ).all()
+        
+        for appt in unbilled_appts:
+            # Check if invoice already exists
+            if any(i.appointment_id == appt.id for i in invoices): continue
+            
+            # Find Cost
+            if appt.treatment_type:
+                t = self.db.query(Treatment).filter(
+                    Treatment.doctor_id == self.doc_id, 
+                    Treatment.name == appt.treatment_type
+                ).first()
+                if t: pending += t.cost
 
         # 2. Format List for Table
         invoice_list = []

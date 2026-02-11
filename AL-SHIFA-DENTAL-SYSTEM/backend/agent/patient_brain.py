@@ -162,7 +162,16 @@ class PatientBrain:
             - Always provide clickable buttons in brackets: `[Option Name]`.
             
             Current Date: {current_date}.
-            Use tools for every query.
+            
+            **TOOL USAGE INSTRUCTIONS:**
+            If you need to call a tool, you MUST use this exact format:
+            <function=tool_name>{{"arg": "value"}}</function>
+            
+            Example:
+            <function=book_appointment>{{"doctor_id": "123", "date": "2026-02-12", "time": "10:00", "reason": "Checkup"}}</function>
+            
+            Do NOT include any other text with the tool call.
+            Use tools for every query involved with data.
         """
         
         self.messages = [{"role": "system", "content": self.system_prompt}]
@@ -188,13 +197,33 @@ class PatientBrain:
             tool_calls = message.tool_calls or []
 
             # FALLBACK: If model outputs text-based function tags instead of native tool_calls
-            if not tool_calls and "<function=" in content:
-                print("DEBUG: Detected text-based function tags. Parsing fallback...")
-                matches = re.finditer(r'<function=(.*?)>(.*?)</function>', content, re.DOTALL)
+            if not tool_calls:
+                # Robust Regex to catch malformed tags like:
+                # <function=name>args</function>
+                # name>args</function>
+                # <function="name">args</function>
+                print("DEBUG: Checking for text-based function tags...")
+                pattern = r'(?:<function=)?([\w_]+)(?:>|=")(.*?)(?:</function>|")?'
+                matches = re.finditer(pattern, content, re.DOTALL)
+                
                 for i, match in enumerate(matches):
                     name = match.group(1).strip()
+                    args_str = match.group(2).strip()
+                    
+                    # Cleanup args string (remove trailing ) or }) if needed)
+                    if args_str.endswith(")") and not args_str.endswith("})"):
+                        args_str = args_str[:-1]
+                        
+                    # Retrieve existing tools to validate name
+                    valid_tools = [t["function"]["name"] for t in self.tools_schema]
+                    if name not in valid_tools: continue
+
                     try:
-                        args = json.loads(match.group(2).strip())
+                        # Try parsing args
+                        # If empty, use {}
+                        if not args_str: args_str = "{}"
+                        args = json.loads(args_str)
+                        
                         # Create a mock tool call object
                         from types import SimpleNamespace
                         mock_call = SimpleNamespace(
@@ -202,7 +231,10 @@ class PatientBrain:
                             function=SimpleNamespace(name=name, arguments=json.dumps(args))
                         )
                         tool_calls.append(mock_call)
-                    except: continue
+                        print(f"DEBUG: Parsed text tool call: {name} with {args}")
+                    except Exception as e:
+                         print(f"DEBUG: Failed to parse args for {name}: {e}")
+                         continue
 
             if tool_calls:
                 print(f"DEBUG: Agent requested {len(tool_calls)} tools.")
@@ -283,14 +315,21 @@ class PatientBrain:
                 self.messages.append({"role": "assistant", "content": final_text})
                 
                 # Cleanup: Ensure no raw tags reach the user
+                # Remove <function...>...</function> blocks completely
                 final_text = re.sub(r'<function=.*?>.*?</function>', '', final_text, flags=re.DOTALL)
-                
+                # Remove malformed tags like name>args</function>
+                final_text = re.sub(r'[\w_]+>.*?<\/function>', '', final_text, flags=re.DOTALL)
+                # Remove just the opening tags if leftovers
+                final_text = re.sub(r'<function=.*?>', '', final_text)
+
                 actions = re.findall(r'\[(.*?)\]', final_text)
                 clean_text = re.sub(r'\[.*?\]', '', final_text).strip()
                 return {"response": clean_text, "actions": actions}
             
             # No tools called
             final_text = content
+            # Cleanup here too just in case
+            final_text = re.sub(r'<function=.*?>.*?</function>', '', final_text, flags=re.DOTALL) 
             actions = re.findall(r'\[(.*?)\]', final_text)
             clean_text = re.sub(r'\[.*?\]', '', final_text).strip()
             return {"response": clean_text, "actions": actions}

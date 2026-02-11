@@ -2053,3 +2053,219 @@
 2026-02-06 16:06:50,149 | INFO | Scheduler started
 2026-02-06 16:12:25,453 | INFO | Running job "AgentScheduler.check_upcoming_appointments (trigger: interval[0:15:00], next run at: 2026-02-06 16:12:25 IST)" (scheduled at 2026-02-06 16:12:25.444537+05:30)
 2026-02-06 16:12:25,455 | INFO | Job "AgentScheduler.check_upcoming_appointments (trigger: interval[0:15:00], next run at: 2026-02-06 16:27:25 IST)" executed successfully
+2026-02-10 16:31:20,111 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:31:20,111 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:31:20,117 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:31:20,117 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 16:31:20,117 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 16:31:20,117 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 16:31:20,117 | INFO | Scheduler started
+2026-02-10 16:32:49,816 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:32:49,817 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:32:49,821 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:32:49,821 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 16:32:49,821 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 16:32:49,821 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 16:32:49,821 | INFO | Scheduler started
+2026-02-10 16:45:14,337 | INFO | Connecting to SMTP: smtp.gmail.com:465
+2026-02-10 16:45:20,291 | INFO | \u2705 Email sent successfully to akhiyarhussains1769.sse@saveetha.com
+2026-02-10 16:46:41,908 | INFO | Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2026-02-10 16:46:45,097 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 16:46:45,354 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 16:47:33,802 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 16:47:34,240 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 16:47:46,852 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+2026-02-10 16:47:49,827 | INFO | Running job "AgentScheduler.check_upcoming_appointments (trigger: interval[0:15:00], next run at: 2026-02-10 16:47:49 IST)" (scheduled at 2026-02-10 16:47:49.817118+05:30)
+2026-02-10 16:47:49,827 | INFO | Job "AgentScheduler.check_upcoming_appointments (trigger: interval[0:15:00], next run at: 2026-02-10 16:47:49 IST)" executed successfully
+2026-02-10 16:48:27,839 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 16:48:28,165 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 16:49:08,974 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 16:49:09,367 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 16:53:58,722 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:53:58,722 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:53:58,724 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:53:58,724 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 16:53:58,724 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 16:53:58,727 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 16:53:58,727 | INFO | Scheduler started
+2026-02-10 16:54:03,721 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:54:03,721 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:54:03,724 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:54:03,724 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 16:54:03,724 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 16:54:03,724 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 16:54:03,724 | INFO | Scheduler started
+2026-02-10 16:54:08,602 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:54:08,602 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:54:08,607 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:54:08,607 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 16:54:08,607 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 16:54:08,607 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 16:54:08,607 | INFO | Scheduler started
+2026-02-10 16:55:02,354 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:55:02,354 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:55:02,367 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:55:02,367 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 16:55:02,367 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 16:55:02,367 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 16:55:02,367 | INFO | Scheduler started
+2026-02-10 16:56:51,204 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:56:51,204 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:56:51,208 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:56:51,208 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 16:56:51,208 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 16:56:51,208 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 16:56:51,208 | INFO | Scheduler started
+2026-02-10 16:57:26,070 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:57:26,072 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:57:26,086 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 16:57:26,088 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 16:57:26,089 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 16:57:26,089 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 16:57:26,089 | INFO | Scheduler started
+2026-02-10 17:01:14,704 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:05:10,015 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:05:10,015 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:05:10,018 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:05:10,018 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 17:05:10,018 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 17:05:10,018 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 17:05:10,018 | INFO | Scheduler started
+2026-02-10 17:07:10,029 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:07:10,030 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:07:10,038 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:07:10,040 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 17:07:10,040 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 17:07:10,040 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 17:07:10,040 | INFO | Scheduler started
+2026-02-10 17:08:20,047 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:08:20,048 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:08:20,059 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:08:20,059 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 17:08:20,059 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 17:08:20,059 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 17:08:20,059 | INFO | Scheduler started
+2026-02-10 17:08:25,859 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:08:25,859 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:08:25,865 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:08:25,865 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 17:08:25,865 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 17:08:25,865 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 17:08:25,865 | INFO | Scheduler started
+2026-02-10 17:08:45,570 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:08:45,570 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:08:45,577 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:08:45,577 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 17:08:45,577 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 17:08:45,577 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 17:08:45,577 | INFO | Scheduler started
+2026-02-10 17:10:39,657 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:10:40,198 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:10:55,165 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:10:55,621 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:11:15,135 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:11:15,236 | INFO | Connecting to SMTP: smtp.gmail.com:465
+2026-02-10 17:11:21,881 | INFO | \u2705 Email sent successfully to syedakhiyarhussain@gmail.com
+2026-02-10 17:11:22,455 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:11:54,833 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:11:54,902 | INFO | Connecting to SMTP: smtp.gmail.com:465
+2026-02-10 17:11:59,617 | INFO | \u2705 Email sent successfully to syedakhiyarhussain@gmail.com
+2026-02-10 17:11:59,956 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:14:25,346 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:14:25,409 | INFO | Connecting to SMTP: smtp.gmail.com:465
+2026-02-10 17:14:31,047 | INFO | \u2705 Email sent successfully to syedakhiyarhussain@gmail.com
+2026-02-10 17:14:31,651 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:16:22,358 | INFO | Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2026-02-10 17:16:24,048 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:16:24,498 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:16:50,482 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:16:51,243 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:17:05,093 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-02-10 17:17:05,095 | INFO | Retrying request to /chat/completions in 15.000000 seconds
+2026-02-10 17:17:20,955 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:17:21,187 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-02-10 17:17:21,187 | INFO | Retrying request to /chat/completions in 17.000000 seconds
+2026-02-10 17:17:39,087 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:17:46,610 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-02-10 17:17:46,611 | INFO | Retrying request to /chat/completions in 29.000000 seconds
+2026-02-10 17:18:17,326 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:18:17,619 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-02-10 17:18:17,620 | INFO | Retrying request to /chat/completions in 19.000000 seconds
+2026-02-10 17:18:37,300 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:23:45,579 | INFO | Running job "AgentScheduler.check_upcoming_appointments (trigger: interval[0:15:00], next run at: 2026-02-10 17:23:45 IST)" (scheduled at 2026-02-10 17:23:45.570584+05:30)
+2026-02-10 17:23:45,581 | INFO | Job "AgentScheduler.check_upcoming_appointments (trigger: interval[0:15:00], next run at: 2026-02-10 17:23:45 IST)" executed successfully
+2026-02-10 17:30:21,672 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:30:21,672 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:30:21,674 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:30:21,674 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 17:30:21,674 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 17:30:21,674 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 17:30:21,674 | INFO | Scheduler started
+2026-02-10 17:31:22,443 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:31:22,443 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:31:22,445 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:31:22,446 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 17:31:22,446 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 17:31:22,446 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 17:31:22,446 | INFO | Scheduler started
+2026-02-10 17:32:03,821 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:32:03,821 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:32:03,824 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:32:03,824 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 17:32:03,824 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 17:32:03,824 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 17:32:03,824 | INFO | Scheduler started
+2026-02-10 17:32:28,089 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:32:28,089 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:32:28,097 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-10 17:32:28,097 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-10 17:32:28,097 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-10 17:32:28,097 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-10 17:32:28,097 | INFO | Scheduler started
+2026-02-10 17:34:08,691 | INFO | Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2026-02-10 17:34:11,047 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:34:11,409 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:36:49,409 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:36:49,891 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:37:04,143 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:37:04,221 | INFO | Connecting to SMTP: smtp.gmail.com:465
+2026-02-10 17:37:09,420 | INFO | \u2705 Email sent successfully to syedakhiyarhussain@gmail.com
+2026-02-10 17:37:10,052 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:38:57,259 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-10 17:38:57,774 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-11 12:25:07,664 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-11 12:25:07,667 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-11 12:25:07,682 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-11 12:25:07,682 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-11 12:25:07,682 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-11 12:25:07,682 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-11 12:25:07,682 | INFO | Scheduler started
+2026-02-11 12:26:29,138 | INFO | Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2026-02-11 12:26:32,502 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+2026-02-11 12:27:14,056 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+2026-02-11 12:27:32,386 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-11 12:27:32,784 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-11 12:30:50,427 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-11 12:30:50,428 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-11 12:30:50,435 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-11 12:30:50,435 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-11 12:30:50,435 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-11 12:30:50,435 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-11 12:30:50,435 | INFO | Scheduler started
+2026-02-11 12:30:56,722 | INFO | Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2026-02-11 12:30:58,931 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-11 12:30:59,542 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-02-11 12:32:10,292 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-11 12:32:10,292 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-11 12:32:10,300 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-11 12:32:10,301 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-11 12:32:10,301 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-11 12:32:10,301 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-11 12:32:10,301 | INFO | Scheduler started
+2026-02-11 12:32:54,541 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-11 12:32:54,541 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-11 12:32:54,550 | INFO | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-11 12:32:54,550 | INFO | Added job "AgentScheduler.check_low_stock" to job store "default"
+2026-02-11 12:32:54,550 | INFO | Added job "AgentScheduler.check_upcoming_appointments" to job store "default"
+2026-02-11 12:32:54,550 | INFO | Added job "AgentScheduler.auto_cancel_no_shows" to job store "default"
+2026-02-11 12:32:54,550 | INFO | Scheduler started

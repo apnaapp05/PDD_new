@@ -186,6 +186,7 @@ async def upload_inventory(
 @router.get("/treatments")
 def get_doc_treatments(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+    if not doc: return []
     treatments = db.query(models.Treatment).filter(models.Treatment.doctor_id == doc.id).all()
     results = []
     for t in treatments:
@@ -196,6 +197,7 @@ def get_doc_treatments(user: models.User = Depends(get_current_user), db: Sessio
 @router.post("/treatments")
 def create_treatment(data: schemas.TreatmentCreate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+    if not doc: raise HTTPException(400, "Doctor profile not found")
     
     if db.query(models.Treatment).filter(models.Treatment.doctor_id == doc.id, models.Treatment.name == data.name).first():
         raise HTTPException(400, "Treatment already exists")
@@ -214,6 +216,7 @@ def link_inv(tid: int, data: schemas.TreatmentLinkCreate, user: models.User = De
 @router.get("/inventory")
 def get_inv(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+    if not doc: return []
     items = db.query(models.InventoryItem).filter(models.InventoryItem.hospital_id == doc.hospital_id).all()
     return [{
         "id": i.id, 
@@ -227,12 +230,14 @@ def get_inv(user: models.User = Depends(get_current_user), db: Session = Depends
 @router.post("/inventory")
 def add_inv(item: schemas.InventoryItemCreate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+    if not doc: raise HTTPException(400, "Doctor profile not found")
     db.add(models.InventoryItem(hospital_id=doc.hospital_id, name=item.name, quantity=item.quantity, unit=item.unit, min_threshold=item.min_threshold))
     db.commit(); return {"message": "Added"}
 
 @router.get("/schedule")
 def get_sched(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+    if not doc: return []
     return db.query(models.Appointment).filter(
         models.Appointment.doctor_id == doc.id,
         models.Appointment.status != "cancelled" 
@@ -242,6 +247,7 @@ def get_sched(user: models.User = Depends(get_current_user), db: Session = Depen
 def get_daily_appointments(date: str, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "doctor": raise HTTPException(403)
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+    if not doc: return {"appointments": []}
     try:
         query_date = datetime.strptime(date, "%Y-%m-%d")
         start_of_day = query_date.replace(hour=0, minute=0, second=0)
@@ -274,6 +280,7 @@ def get_daily_appointments(date: str, user: models.User = Depends(get_current_us
 def block_slot(data: schemas.BlockSlotCreate, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "doctor": raise HTTPException(403)
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+    if not doc: raise HTTPException(400, "Doctor profile not found")
     
     start_dt = datetime.strptime(f"{data.date} {data.time or '00:00'}", "%Y-%m-%d %H:%M")
     end_dt = start_dt + timedelta(minutes=30) 
@@ -294,6 +301,7 @@ def get_schedule_settings(user: models.User = Depends(get_current_user), db: Ses
 def update_schedule_settings(settings: dict, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "doctor": raise HTTPException(403)
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+    if not doc: raise HTTPException(400, "Doctor profile not found")
     doc.scheduling_config = json.dumps(settings)
     db.commit()
     return {"message": "Settings updated"}
@@ -318,6 +326,7 @@ def get_fin(user: models.User = Depends(get_current_user), db: Session = Depends
 @router.get("/patients")
 def get_doc_patients(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+    if not doc: return []
     appts = db.query(models.Appointment).filter(models.Appointment.doctor_id == doc.id).all()
     pids = set(a.patient_id for a in appts)
     recs = db.query(models.MedicalRecord).filter(models.MedicalRecord.doctor_id == doc.id).all()
@@ -382,6 +391,7 @@ def add_rec(id: int, data: schemas.RecordCreate, user: models.User = Depends(get
 def get_invoice_detail(id: int, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role != "doctor": raise HTTPException(403, "Not authorized")
     doc = db.query(models.Doctor).filter(models.Doctor.user_id == user.id).first()
+    if not doc: raise HTTPException(400, "Doctor profile not found")
     inv = db.query(models.Invoice).join(models.Appointment).filter(
         models.Invoice.id == id,
         models.Appointment.doctor_id == doc.id
