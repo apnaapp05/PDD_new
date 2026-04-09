@@ -1,0 +1,30 @@
+name,quantity,unit,min_threshold,buying_cost
+Dental Gloves (Box),50,box,10,500.0
+Disposable Masks,200,piece,50,5.0
+Cotton Rolls,100,pack,20,150.0
+Gauze Pads,75,pack,15,100.0
+Dental Bibs,150,piece,30,3.0
+Lidocaine 2% Cartridges,40,cartridge,15,50.0
+Articaine 4%,30,cartridge,10,60.0
+Septocaine,25,cartridge,10,55.0
+Composite Resin A2,12,syringe,5,800.0
+Composite Resin A3,15,syringe,5,800.0
+Glass Ionomer Cement,8,powder,3,1200.0
+Amalgam Alloy,10,capsule,5,200.0
+Dental Bonding Agent,6,bottle,2,1500.0
+Etching Gel (37%),8,syringe,3,300.0
+Gutta Percha Points,20,pack,5,400.0
+Endodontic Files (K-Files),15,pack,5,600.0
+Root Canal Sealer,5,tube,2,800.0
+Paper Points,12,pack,4,250.0
+Alginate Powder,10,kg,3,2000.0
+Silicone Impression Material,8,cartridge,3,1500.0
+Zinc Phosphate Cement,6,powder,2,1000.0
+Temporary Filling Cement,10,tube,3,400.0
+Ibuprofen 400mg,100,tablet,30,2.0
+Amoxicillin 500mg,80,capsule,20,5.0
+Chlorhexidine Mouthwash,15,bottle,5,300.0
+Dental Mirrors,30,piece,10,150.0
+Explorers,25,piece,8,200.0
+Tweezers,20,piece,7,180.0
+Scalers,18,piece,6,250.0
